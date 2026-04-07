@@ -33,5 +33,6 @@ export function resolveContext(opts: Record<string, unknown>): RunContext {
 		yes: opts.yes === true,
 		profile: typeof opts.profile === "string" ? opts.profile : "default",
 		experimental: opts.experimental === true,
+		...(typeof opts.input === "string" ? { input: opts.input } : {}),
 	};
 }

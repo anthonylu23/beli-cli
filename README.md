@@ -23,7 +23,9 @@ bun run dev                        # Run the CLI (shows help)
 bun run dev -- --version           # Print version
 bun run dev -- --json              # Enable JSON output mode
 bun run dev -- --experimental raw foo  # Experimental raw resource access
+bun run dev -- --json --experimental raw foo  # Raw placeholder output as JSON
 bun test                           # Run tests
+bun run test:coverage              # Run tests with Bun coverage reporting
 bun run typecheck                  # Type-check without emitting
 bun run check                      # Lint and format check (Biome)
 bun run check:fix                  # Auto-fix lint and format issues
@@ -57,7 +59,7 @@ See [docs/architecture.md](docs/architecture.md) for details.
 | `--yes` | Skip confirmation prompts |
 | `--profile <name>` | Config profile to use (default: `default`) |
 | `--experimental` | Enable experimental features |
-| `--input <source>` | Read input from source (use `-` for stdin) |
+| `--input <source>` | Carry an input source through command context (use `-` for stdin) |
 
 ## Next Steps
 

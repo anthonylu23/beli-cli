@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { AuthRequiredError, UpstreamError, ValidationError } from "@core/errors.ts";
 import type { RunContext } from "./context.ts";
 import type { Column } from "./output.ts";
@@ -138,6 +138,29 @@ describe("printDetail", () => {
 		try {
 			printDetail(data, makeCtx({ json: true, fields: ["name"] }));
 			expect(JSON.parse(cap.output)).toEqual({ name: "Pizzeria" });
+		} finally {
+			cap.restore();
+		}
+	});
+
+	test("renders optional inputSource field when present", () => {
+		const cap = captureStream(process.stdout);
+		try {
+			printDetail(
+				{
+					resource: "foo",
+					status: "recognized",
+					implemented: false,
+					message: "Adapter not yet implemented.",
+					inputSource: "-",
+				},
+				makeCtx({ fields: ["resource", "inputSource"] }),
+			);
+			expect(cap.output).toContain("resource");
+			expect(cap.output).toContain("foo");
+			expect(cap.output).toContain("inputSource");
+			expect(cap.output).toContain("-");
+			expect(cap.output).not.toContain("implemented");
 		} finally {
 			cap.restore();
 		}

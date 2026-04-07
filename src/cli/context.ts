@@ -6,4 +6,5 @@ export interface RunContext {
 	readonly yes: boolean;
 	readonly profile: string;
 	readonly experimental: boolean;
+	readonly input?: string;
 }

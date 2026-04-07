@@ -2,6 +2,7 @@ import { UnsupportedFeatureError } from "@core/errors.ts";
 import type { Command } from "commander";
 import type { RunContext } from "../context.ts";
 import { resolveContext } from "../flags.ts";
+import { printDetail } from "../output.ts";
 import { runCommand } from "../run.ts";
 
 /** Register the `beli raw <resource>` command. */
@@ -27,8 +28,14 @@ function assertExperimental(ctx: RunContext): void {
 	}
 }
 
-async function executeRaw(resource: string, _ctx: RunContext): Promise<void> {
-	// Adapter implementation required (Phase 2+).
-	// For now, print a placeholder explaining the resource was recognized.
-	process.stdout.write(`raw: resource "${resource}" recognized. Adapter not yet implemented.\n`);
+async function executeRaw(resource: string, ctx: RunContext): Promise<void> {
+	const payload = {
+		resource,
+		status: "recognized",
+		implemented: false,
+		message: "Adapter not yet implemented.",
+		...(ctx.input !== undefined ? { inputSource: ctx.input } : {}),
+	} as const;
+
+	printDetail(payload, ctx);
 }

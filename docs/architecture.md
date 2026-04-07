@@ -66,7 +66,7 @@ The CLI layer uses **Commander.js** for argument parsing and subcommand registra
 
 | File | Purpose |
 |---|---|
-| `src/cli/index.ts` | Root command, global flags, subcommand registration |
+| `src/cli/index.ts` | `createProgram()`, root command wiring, and CLI entrypoint |
 | `src/cli/context.ts` | `RunContext` type — resolved global flags passed to all commands |
 | `src/cli/flags.ts` | Global flag definitions, `resolveContext()` parser |
 | `src/cli/output.ts` | Formatters: `printTable`, `printDetail`, `printJson`, `printError` |
@@ -77,13 +77,14 @@ The CLI layer uses **Commander.js** for argument parsing and subcommand registra
 ### Execution model
 
 1. Commander parses arguments and dispatches to a command handler.
-2. The handler calls `resolveContext()` to build a `RunContext` from global flags.
+2. The handler calls `resolveContext()` to build a `RunContext` from global flags, including `input` propagation.
 3. The handler calls `runCommand(ctx, fn)` which:
    - Runs `fn(ctx)` — the command logic.
    - On success, exits with `0`.
    - On `BeliError`, prints to stderr and exits with the error's exit code.
    - On unknown error, prints to stderr and exits with `1`.
 4. Output functions (`printTable`, `printDetail`) respect `--json` and `--fields` to support both human and agent consumers.
+5. Placeholder commands still emit structured payloads through the shared output layer so stdout shape stays stable for agents.
 
 ### Output routing
 

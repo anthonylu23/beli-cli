@@ -65,4 +65,9 @@ describe("resolveContext", () => {
 		const ctx = resolveContext({ experimental: true });
 		expect(ctx.experimental).toBe(true);
 	});
+
+	test("parses --input", () => {
+		const ctx = resolveContext({ input: "payload.json" });
+		expect(ctx.input).toBe("payload.json");
+	});
 });
