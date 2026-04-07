@@ -18,5 +18,8 @@
 		"@types/bun": "latest",
 		"typescript": "^5.7"
 	},
-	"trustedDependencies": ["@biomejs/biome"]
+	"trustedDependencies": ["@biomejs/biome"],
+	"dependencies": {
+		"commander": "^14.0.3"
+	}
 }
