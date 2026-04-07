@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Bun
+bun.lock
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+!.vscode/settings.json
+.idea/
+.cursor/

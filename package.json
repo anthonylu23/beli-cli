@@ -1,0 +1,22 @@
+{
+	"name": "beli-cli",
+	"version": "0.0.0",
+	"type": "module",
+	"private": true,
+	"bin": {
+		"beli": "./src/cli/index.ts"
+	},
+	"scripts": {
+		"dev": "bun run src/cli/index.ts",
+		"test": "bun test",
+		"check": "biome check .",
+		"check:fix": "biome check --fix .",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9",
+		"@types/bun": "latest",
+		"typescript": "^5.7"
+	},
+	"trustedDependencies": ["@biomejs/biome"]
+}
