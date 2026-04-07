@@ -1,4 +1,17 @@
 #!/usr/bin/env bun
 
-console.log("beli-cli v0.0.0");
-process.exit(0);
+import { Command } from "commander";
+import { registerRawCommand } from "./commands/raw.ts";
+import { addGlobalFlags } from "./flags.ts";
+
+const VERSION = "0.1.0";
+
+const program = new Command()
+	.name("beli")
+	.version(VERSION, "-V, --version", "Print version")
+	.description("Beli restaurant CLI");
+
+addGlobalFlags(program);
+registerRawCommand(program);
+
+program.parse();
