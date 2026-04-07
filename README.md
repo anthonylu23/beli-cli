@@ -4,7 +4,7 @@ Personal CLI for Beli restaurant functionality. Gives agents and humans access t
 
 ## Status
 
-**Phase 1** — CLI shell implemented. Commander.js-based command parsing with global flags, output formatters, and execution wrapper. No API calls yet.
+**Phase 2 In Progress** — Authentication and session management is scaffolded. `beli auth bootstrap|status|logout`, keychain-backed session storage, and config file management are implemented. Live token validation is still stubbed until API endpoints are mapped.
 
 ## Prerequisites
 
@@ -33,21 +33,37 @@ bun run check:fix                  # Auto-fix lint and format issues
 
 ## Architecture
 
-Three-layer architecture with strict dependency direction (imports flow inward only):
+Four-layer architecture with strict dependency direction (imports flow inward only):
 
 ```
 src/cli          Commands, flags, prompts, human/JSON rendering
     |
 src/core         Normalized entities, use cases, pagination, errors
-    ^
-src/adapters     Auth, transport, retries, rate limiting, response mapping
+ ^      ^
+ |      |
+src/infra        Keychain and config persistence
+src/adapters     Auth validation, transport, response mapping
 ```
 
 - **Core** owns the domain model and business logic. No external dependencies.
-- **Adapters** implement the `BeliAdapter` interface to connect core to upstream APIs.
+- **Infra** owns platform-specific persistence concerns such as keychain and config file access.
+- **Adapters** implement the `BeliAdapter` interface and Phase 2 token validation stubs.
 - **CLI** wires everything together and handles user interaction.
 
 See [docs/architecture.md](docs/architecture.md) for details.
+
+## Authentication
+
+```sh
+beli auth bootstrap          # Import session tokens from Beli mobile app
+beli auth status             # Show current session status
+beli auth status --json      # Session status as JSON
+beli auth logout             # Remove stored session
+beli auth logout --yes       # Skip confirmation prompt
+```
+
+Session secrets are stored in macOS Keychain. Non-secret config lives in `~/.config/beli-cli/config.json`.
+When bootstrapping without a known Beli user ID, the session is stored with an unknown identity until live validation or a later command can resolve it.
 
 ## Global Flags
 
@@ -63,6 +79,5 @@ See [docs/architecture.md](docs/architecture.md) for details.
 
 ## Next Steps
 
-- Phase 2: Authentication and session management (`beli auth bootstrap|status|logout`)
 - Phase 3: Read-only core functionality (search, lists, activity, social)
 - Phase 4: Write operations (lists, ratings, reviews)

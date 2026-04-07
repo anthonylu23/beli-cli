@@ -6,41 +6,65 @@ Build a Bun-first TypeScript CLI for local personal use that gives agents and hu
 
 This plan assumes there is no public Beli API and that any usable integration will come from an authenticated app-equivalent private client. Because Beli's published terms restrict scraping, reverse engineering, and credential sharing, implementation should stay local, single-user, and cautious about write operations.
 
+## Current Status
+
+- Phase 0 is complete.
+- Phase 1 is complete and merged to `main`.
+- Phase 2 is in progress.
+- Phases 3 through 5 remain.
+
+Completed work now in the repo:
+
+- Bun-first TypeScript project scaffold with `src/cli`, `src/core`, and `src/adapters/private-mobile`.
+- Baseline tooling: TypeScript config, Bun scripts, Biome, test harness, and coverage reporting via `bun run test:coverage`.
+- Core entity/types foundation and stable exit-code contract.
+- Root `beli` CLI, global flags, shared formatter layer, and command execution wrapper.
+- Experimental `beli raw <resource>` placeholder command with stable human and JSON output.
+- Shared `RunContext` now carries `--input <source>` through command execution.
+- Phase 1 test coverage includes unit tests, in-process command tests, and end-to-end subprocess tests for stdout, stderr, flag handling, and exit codes.
+- Phase 2 scaffolding includes auth commands, session/config models, keychain/config persistence, and isolated auth/keychain tests.
+
 ## Phase 0: Foundation And Guardrails
 
-- Scaffold a Bun-first TypeScript project with `src/cli`, `src/core`, and `src/adapters/private-mobile`.
-- Add baseline tooling: TypeScript config, Bun scripts, lint/format setup, test harness, and `.gitignore`.
-- Define the main architectural contract:
+- Status: complete.
+- Completed: scaffold a Bun-first TypeScript project with `src/cli`, `src/core`, and `src/adapters/private-mobile`.
+- Completed: add baseline tooling: TypeScript config, Bun scripts, lint/format setup, test harness, `.gitignore`, and coverage reporting.
+- Completed: define the main architectural contract:
   - `src/core` owns normalized entities, use cases, pagination, errors, and output-independent behavior.
   - `src/adapters/private-mobile` owns auth, transport, retries, rate limiting, and upstream response mapping.
   - `src/cli` owns commands, flags, prompts, and human/JSON rendering.
-- Define stable normalized entities: `User`, `Restaurant`, `List`, `Rating`, `Review`, `Visit`, and `FeedItem`.
-- Standardize cross-cutting behavior:
+- Completed: define stable normalized entities: `User`, `Restaurant`, `List`, `Rating`, `Review`, `Visit`, and `FeedItem`.
+- Completed: standardize cross-cutting behavior:
   - IDs remain opaque strings.
   - Timestamps normalize to ISO 8601 UTC.
   - Paginated results use `{ items, nextCursor }`.
   - Exit codes use `0` success, `2` validation error, `3` auth required/expired, `4` upstream failure, `5` unsupported feature.
-- Add clear runtime boundaries:
+- Completed: add clear runtime boundaries:
   - Prefer standard web APIs in core logic.
   - Keep Bun-specific usage limited to packaging and developer workflow.
   - Do not add MCP in v1.
 
 ## Phase 1: CLI Shell And Shared UX
 
-- Implement the root `beli` command and global flags:
+- Status: complete.
+- Completed: implement the root `beli` command and global flags:
   - `--json`
   - `--fields`
   - `--no-color`
   - `--yes`
   - `--profile`
-  - `--input -`
-- Build a consistent command execution model:
+  - `--input <source>`
+- Completed: build a consistent command execution model:
   - Human output goes to formatted stdout by default.
   - JSON mode emits JSON only on stdout.
   - Diagnostics and errors go to stderr.
-- Add shared formatters for tables, detail views, and structured error output.
-- Add stdin JSON ingestion for write commands so agents can pipe structured input directly.
-- Add `beli raw <resource>` behind `--experimental` as a low-level debugging escape hatch.
+- Completed: add shared formatters for tables, detail views, and structured error output.
+- Completed: add `readStdinJson()` for upcoming write commands so agents can pipe structured input directly.
+- Completed: add `beli raw <resource>` behind `--experimental` as a low-level debugging escape hatch.
+- Completed: refactor CLI construction behind `createProgram()` so command registration is directly testable.
+- Completed: make placeholder command output honor `--json` and `--fields`.
+- Completed: propagate `--input <source>` through `RunContext` for upcoming write flows.
+- Completed: add Phase 1 verification coverage for help output, error routing, exit codes, flag parsing, structured stdout, and JSON behavior.
 
 ## Phase 2: Authentication And Session Management
 
@@ -81,9 +105,12 @@ This plan assumes there is no public Beli API and that any usable integration wi
 
 ## Phase 5: Verification, Hardening, And Release
 
-- Add unit tests for:
+- Completed for Phase 1:
   - command parsing
   - formatter behavior
+  - error routing and exit codes
+  - subprocess-level CLI behavior
+- Remaining for later phases:
   - schema validation
   - session storage
   - mapper correctness

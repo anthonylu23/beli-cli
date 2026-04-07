@@ -5,21 +5,23 @@
 ```
 ┌─────────────────────────────────┐
 │           src/cli               │  Commands, flags, prompts, rendering
-│    (depends on core only)       │
+│ (depends on core + infra +      │
+│  adapter validation shims)      │
 └──────────────┬──────────────────┘
                │
 ┌──────────────▼──────────────────┐
 │           src/core              │  Entities, use cases, errors, pagination
 │      (no external imports)      │
 └──────────────▲──────────────────┘
-               │
-┌──────────────┴──────────────────┐
-│  src/adapters/private-mobile    │  Auth, transport, retries, response mapping
-│  (implements BeliAdapter)       │
-└─────────────────────────────────┘
+          ┌────┴────┐
+┌─────────┴───┐  ┌──┴──────────────────┐
+│  src/infra  │  │  src/adapters/...   │
+│  Keychain,  │  │  BeliAdapter impl,  │
+│  config     │  │  transport, mapping │
+└─────────────┘  └─────────────────────┘
 ```
 
-**Dependency rule:** imports flow inward only. CLI can import core. Adapters import core types and implement the `BeliAdapter` contract. Core imports nothing outside itself.
+**Dependency rule:** imports flow inward only. CLI can import core, infra, and temporary adapter validation shims. Infra and adapters import core types only. Core imports nothing outside itself.
 
 ## Path Aliases
 
@@ -28,6 +30,7 @@
 | `@core/*` | `src/core/*` |
 | `@adapters/*` | `src/adapters/*` |
 | `@cli/*` | `src/cli/*` |
+| `@infra/*` | `src/infra/*` |
 
 ## Entity Model
 
@@ -73,6 +76,8 @@ The CLI layer uses **Commander.js** for argument parsing and subcommand registra
 | `src/cli/run.ts` | `runCommand()` — error→exit-code wrapper for command handlers |
 | `src/cli/stdin.ts` | `readStdinJson()` — stdin JSON ingestion for `--input -` |
 | `src/cli/commands/raw.ts` | `beli raw <resource>` — experimental low-level access |
+| `src/cli/commands/auth.ts` | `beli auth bootstrap\|status\|logout` — session management |
+| `src/cli/session.ts` | `requireSession()` — load session or throw `AuthRequiredError` |
 
 ### Execution model
 
@@ -90,6 +95,40 @@ The CLI layer uses **Commander.js** for argument parsing and subcommand registra
 
 - **stdout**: data output (human-readable or JSON, never both).
 - **stderr**: errors and diagnostics (always, in both modes).
+
+## Infrastructure Layer (Phase 2)
+
+The `src/infra/` layer handles platform-specific I/O for session persistence.
+
+| File | Purpose |
+|---|---|
+| `src/infra/keychain.ts` | macOS Keychain read/write via `security` CLI (`Bun.spawn`) |
+| `src/infra/config.ts` | `~/.config/beli-cli/config.json` management (atomic writes) |
+| `src/infra/session-store.ts` | Composite `SessionStore` combining keychain (secrets) + config (metadata) |
+
+### Session model
+
+- **`SessionCredentials`** (keychain): `authToken`, `refreshToken`, `userId | null`
+- **`SessionMetadata`** (config file): `profile`, `userId | null`, `username`, `displayName`, `bootstrappedAt`, `lastValidatedAt`
+- **`Session`**: combines both
+- **`SessionStore`** interface: `load`, `save`, `delete`, `exists` — core owns the contract, infra implements it
+- User identity may be unknown immediately after bootstrap if the mobile token capture does not expose a stable user ID yet.
+
+### Keychain storage
+
+- Service: `"beli-cli"`, Account: profile name (e.g., `"default"`)
+- Password field: JSON-serialized `SessionCredentials`
+- Uses macOS `security` CLI (no native bindings)
+- Writes use `security add-generic-password ... -w` with the secret provided on stdin so credentials are not passed via command-line arguments.
+
+### Config file
+
+Path: `~/.config/beli-cli/config.json`. Created on first write with `0600` permissions. Profiles keyed by name.
+
+### Test strategy
+
+- Auth command tests inject an in-memory `SessionStore` and stubbed validation/bootstrap dependencies so they do not touch the real keychain or user config.
+- Keychain tests use an injected security-command runner to verify argument shape and secret-handling behavior without invoking the real macOS keychain.
 
 ## Runtime Boundaries
 
