@@ -58,6 +58,38 @@ All IDs are **branded opaque strings** using `EntityId<T>`. Each entity has its 
 | Errors | Class hierarchy extending `BeliError`, each with an `ExitCode` |
 | Exit codes | `0` success, `2` validation, `3` auth required, `4` upstream failure, `5` unsupported |
 
+## CLI Layer (Phase 1)
+
+The CLI layer uses **Commander.js** for argument parsing and subcommand registration.
+
+### Key modules
+
+| File | Purpose |
+|---|---|
+| `src/cli/index.ts` | Root command, global flags, subcommand registration |
+| `src/cli/context.ts` | `RunContext` type — resolved global flags passed to all commands |
+| `src/cli/flags.ts` | Global flag definitions, `resolveContext()` parser |
+| `src/cli/output.ts` | Formatters: `printTable`, `printDetail`, `printJson`, `printError` |
+| `src/cli/run.ts` | `runCommand()` — error→exit-code wrapper for command handlers |
+| `src/cli/stdin.ts` | `readStdinJson()` — stdin JSON ingestion for `--input -` |
+| `src/cli/commands/raw.ts` | `beli raw <resource>` — experimental low-level access |
+
+### Execution model
+
+1. Commander parses arguments and dispatches to a command handler.
+2. The handler calls `resolveContext()` to build a `RunContext` from global flags.
+3. The handler calls `runCommand(ctx, fn)` which:
+   - Runs `fn(ctx)` — the command logic.
+   - On success, exits with `0`.
+   - On `BeliError`, prints to stderr and exits with the error's exit code.
+   - On unknown error, prints to stderr and exits with `1`.
+4. Output functions (`printTable`, `printDetail`) respect `--json` and `--fields` to support both human and agent consumers.
+
+### Output routing
+
+- **stdout**: data output (human-readable or JSON, never both).
+- **stderr**: errors and diagnostics (always, in both modes).
+
 ## Runtime Boundaries
 
 - Core logic uses standard web APIs only (no Bun-specific imports).
