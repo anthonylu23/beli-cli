@@ -21,6 +21,13 @@ export type {
 } from "./entities.ts";
 
 export type { PaginatedResult } from "./pagination.ts";
+export type {
+	BootstrapInput,
+	Session,
+	SessionCredentials,
+	SessionMetadata,
+	SessionStore,
+} from "./session.ts";
 export type { EntityId, Timestamp } from "./types.ts";
 
 export { ExitCode } from "./exit-codes.ts";

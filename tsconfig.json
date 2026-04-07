@@ -15,7 +15,8 @@
 		"paths": {
 			"@core/*": ["src/core/*"],
 			"@adapters/*": ["src/adapters/*"],
-			"@cli/*": ["src/cli/*"]
+			"@cli/*": ["src/cli/*"],
+			"@infra/*": ["src/infra/*"]
 		},
 
 		"strict": true,

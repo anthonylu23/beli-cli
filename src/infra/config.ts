@@ -1,0 +1,98 @@
+import { mkdir, rename, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+/** Per-profile config stored on disk (no secrets). */
+export interface ProfileConfig {
+	readonly userId: string | null;
+	readonly username: string | null;
+	readonly displayName: string | null;
+	readonly bootstrappedAt: string;
+	readonly lastValidatedAt: string;
+}
+
+/** Top-level config file shape. */
+export interface ConfigFile {
+	readonly profiles: Record<string, ProfileConfig>;
+}
+
+/** Manages the beli-cli config file. */
+export interface ConfigStore {
+	/** Load the full config file. Returns empty config if file doesn't exist. */
+	load(): Promise<ConfigFile>;
+
+	/** Overwrite the entire config file. */
+	save(config: ConfigFile): Promise<void>;
+
+	/** Get a single profile's config. Returns null if not found. */
+	getProfile(profile: string): Promise<ProfileConfig | null>;
+
+	/** Set a single profile's config (merges into existing file). */
+	setProfile(profile: string, data: ProfileConfig): Promise<void>;
+
+	/** Delete a single profile's config. Returns true if deleted. */
+	deleteProfile(profile: string): Promise<boolean>;
+}
+
+const DEFAULT_CONFIG: ConfigFile = { profiles: {} };
+
+function defaultConfigDir(): string {
+	const home = process.env.HOME ?? Bun.env.HOME ?? "";
+	return join(home, ".config", "beli-cli");
+}
+
+export function createConfigStore(configDir?: string): ConfigStore {
+	const dir = configDir ?? defaultConfigDir();
+	const filePath = join(dir, "config.json");
+
+	async function load(): Promise<ConfigFile> {
+		const file = Bun.file(filePath);
+		if (!(await file.exists())) return DEFAULT_CONFIG;
+
+		try {
+			const raw = await file.json();
+			if (raw && typeof raw === "object" && "profiles" in raw) {
+				return raw as ConfigFile;
+			}
+			return DEFAULT_CONFIG;
+		} catch {
+			return DEFAULT_CONFIG;
+		}
+	}
+
+	async function save(config: ConfigFile): Promise<void> {
+		await mkdir(dir, { recursive: true });
+
+		// Atomic write: write to temp then rename
+		const tmpPath = `${filePath}.tmp`;
+		const content = JSON.stringify(config, null, "\t");
+		await writeFile(tmpPath, `${content}\n`, { mode: 0o600 });
+		await rename(tmpPath, filePath);
+	}
+
+	return {
+		load,
+		save,
+
+		async getProfile(profile: string): Promise<ProfileConfig | null> {
+			const config = await load();
+			return config.profiles[profile] ?? null;
+		},
+
+		async setProfile(profile: string, data: ProfileConfig): Promise<void> {
+			const config = await load();
+			await save({
+				...config,
+				profiles: { ...config.profiles, [profile]: data },
+			});
+		},
+
+		async deleteProfile(profile: string): Promise<boolean> {
+			const config = await load();
+			if (!(profile in config.profiles)) return false;
+
+			const { [profile]: _, ...rest } = config.profiles;
+			await save({ ...config, profiles: rest });
+			return true;
+		},
+	};
+}
