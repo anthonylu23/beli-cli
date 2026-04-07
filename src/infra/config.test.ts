@@ -1,0 +1,92 @@
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createConfigStore } from "./config.ts";
+import type { ConfigStore, ProfileConfig } from "./config.ts";
+
+let dir: string;
+let store: ConfigStore;
+
+const testProfile: ProfileConfig = {
+	userId: "user_123",
+	username: "testuser",
+	displayName: "Test User",
+	bootstrappedAt: "2025-04-07T10:00:00.000Z",
+	lastValidatedAt: "2025-04-07T10:00:00.000Z",
+};
+
+beforeEach(async () => {
+	dir = await mkdtemp(join(tmpdir(), "beli-cli-test-"));
+	store = createConfigStore(dir);
+});
+
+afterEach(async () => {
+	await rm(dir, { recursive: true, force: true });
+});
+
+describe("ConfigStore", () => {
+	it("returns empty config when file does not exist", async () => {
+		const config = await store.load();
+		expect(config).toEqual({ profiles: {} });
+	});
+
+	it("returns null for nonexistent profile", async () => {
+		const profile = await store.getProfile("default");
+		expect(profile).toBeNull();
+	});
+
+	it("saves and loads a profile", async () => {
+		await store.setProfile("default", testProfile);
+
+		const loaded = await store.getProfile("default");
+		expect(loaded).toEqual(testProfile);
+	});
+
+	it("preserves other profiles when setting one", async () => {
+		await store.setProfile("default", testProfile);
+		await store.setProfile("work", { ...testProfile, userId: "user_456" });
+
+		const def = await store.getProfile("default");
+		const work = await store.getProfile("work");
+		expect(def?.userId).toBe("user_123");
+		expect(work?.userId).toBe("user_456");
+	});
+
+	it("deletes a profile", async () => {
+		await store.setProfile("default", testProfile);
+		const deleted = await store.deleteProfile("default");
+
+		expect(deleted).toBeTrue();
+		expect(await store.getProfile("default")).toBeNull();
+	});
+
+	it("returns false when deleting nonexistent profile", async () => {
+		const deleted = await store.deleteProfile("nonexistent");
+		expect(deleted).toBeFalse();
+	});
+
+	it("handles malformed config file gracefully", async () => {
+		const filePath = join(dir, "config.json");
+		await Bun.write(filePath, "not json");
+
+		const config = await store.load();
+		expect(config).toEqual({ profiles: {} });
+	});
+
+	it("creates config directory on first write", async () => {
+		const nested = join(dir, "nested", "deep");
+		const nestedStore = createConfigStore(nested);
+		await nestedStore.setProfile("default", testProfile);
+
+		const loaded = await nestedStore.getProfile("default");
+		expect(loaded).toEqual(testProfile);
+	});
+
+	it("preserves null user ids for partially identified sessions", async () => {
+		await store.setProfile("default", { ...testProfile, userId: null });
+
+		const loaded = await store.getProfile("default");
+		expect(loaded?.userId).toBeNull();
+	});
+});
