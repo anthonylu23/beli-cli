@@ -72,12 +72,20 @@ The CLI layer uses **Commander.js** for argument parsing and subcommand registra
 | `src/cli/index.ts` | `createProgram()`, root command wiring, and CLI entrypoint |
 | `src/cli/context.ts` | `RunContext` type — resolved global flags passed to all commands |
 | `src/cli/flags.ts` | Global flag definitions, `resolveContext()` parser |
-| `src/cli/output.ts` | Formatters: `printTable`, `printDetail`, `printJson`, `printError` |
+| `src/cli/output.ts` | Formatters: `printTable`, `printPaginatedTable`, `printDetail`, `printJson`, `printError` |
 | `src/cli/run.ts` | `runCommand()` — error→exit-code wrapper for command handlers |
 | `src/cli/stdin.ts` | `readStdinJson()` — stdin JSON ingestion for `--input -` |
-| `src/cli/commands/raw.ts` | `beli raw <resource>` — experimental low-level access |
-| `src/cli/commands/auth.ts` | `beli auth bootstrap\|status\|logout` — session management |
+| `src/cli/pagination.ts` | `addPaginationOptions()`, `extractPagination()` — `--cursor`/`--limit` |
+| `src/cli/columns.ts` | Table column definitions per entity type |
+| `src/cli/presenters.ts` | Entity → flat record flatteners + `mapPaginated()` |
 | `src/cli/session.ts` | `requireSession()` — load session or throw `AuthRequiredError` |
+| `src/cli/commands/auth.ts` | `beli auth bootstrap\|status\|logout` — session management |
+| `src/cli/commands/me.ts` | `beli me profile\|stats` |
+| `src/cli/commands/restaurants.ts` | `beli restaurants search\|get` |
+| `src/cli/commands/lists.ts` | `beli lists ls\|get` |
+| `src/cli/commands/activity.ts` | `beli activity list` |
+| `src/cli/commands/social.ts` | `beli social feed\|followers\|following` |
+| `src/cli/commands/raw.ts` | `beli raw <resource>` — experimental low-level access |
 
 ### Execution model
 
@@ -89,6 +97,7 @@ The CLI layer uses **Commander.js** for argument parsing and subcommand registra
    - On `BeliError`, prints to stderr and exits with the error's exit code.
    - On unknown error, prints to stderr and exits with `1`.
 4. Output functions (`printTable`, `printDetail`) respect `--json` and `--fields` to support both human and agent consumers.
+   Human output uses flattened presenter rows; JSON output for read commands uses normalized domain objects so arrays, objects, numbers, and `null` remain typed.
 5. Placeholder commands still emit structured payloads through the shared output layer so stdout shape stays stable for agents.
 
 ### Output routing
@@ -125,9 +134,37 @@ The `src/infra/` layer handles platform-specific I/O for session persistence.
 
 Path: `~/.config/beli-cli/config.json`. Created on first write with `0600` permissions. Profiles keyed by name.
 
+## Adapter Layer (Phase 3)
+
+| File | Purpose |
+|---|---|
+| `src/adapters/private-mobile/contract.ts` | `BeliAdapter` interface — all read methods |
+| `src/adapters/private-mobile/stub.ts` | `createStubAdapter()` — fixture-backed in-memory implementation |
+| `src/adapters/private-mobile/fixtures.ts` | Typed fixture data for all entities |
+| `src/adapters/private-mobile/validate.ts` | `validateToken()` — stubbed token validation |
+
+### Stub adapter
+
+`createStubAdapter()` returns a `BeliAdapter` backed entirely by in-memory fixture data. All paginated methods use a shared `paginate()` helper that accepts a stringified index cursor and limit. Lookup methods throw `UpstreamError(404)` for unknown IDs.
+
+This enables full command testing and development without a real API endpoint.
+
+### Read command pattern
+
+Each command group follows the same DI pattern:
+1. `register*Command(program, defaultAdapter, defaultSessionStore, deps?)` registers subcommands.
+2. Each subcommand action calls `resolveContext()` → `runCommand()`.
+3. Inside `runCommand`, the handler validates command-local options such as `--limit`, `--lat`, and `--lng` before auth checks.
+4. The handler calls `requireSession()` for auth gating, creates the adapter with the loaded session, validates the adapter session, then calls adapter methods and output formatters.
+5. `printPaginatedTable()` handles both human (table + cursor hint on stderr) and JSON (`{ items, nextCursor }`) modes.
+
+Pagination cursors in the stub adapter are unsigned integer index strings. Malformed or out-of-range cursors raise `ValidationError` so command behavior matches the future live adapter contract.
+
 ### Test strategy
 
 - Auth command tests inject an in-memory `SessionStore` and stubbed validation/bootstrap dependencies so they do not touch the real keychain or user config.
+- Read command tests use `test-helpers.ts` with shared `runProgram()`, `createMemorySessionStore()`, and `TEST_SESSION` fixtures.
+- Stub adapter tests verify the contract: pagination, filtering, malformed cursors, not-found errors, and validation failures.
 - Keychain tests use an injected security-command runner to verify argument shape and secret-handling behavior without invoking the real macOS keychain.
 
 ## Runtime Boundaries

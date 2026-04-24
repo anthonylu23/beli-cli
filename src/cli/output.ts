@@ -1,4 +1,5 @@
 import { BeliError } from "@core/errors.ts";
+import type { PaginatedResult } from "@core/pagination.ts";
 import type { RunContext } from "./context.ts";
 
 /** Column definition for table output. */
@@ -12,7 +13,7 @@ export interface Column {
 // ── Field filtering ──────────────────────────────────────────────────
 
 /** Filter an object to only include the specified fields. Returns the original if fields is empty. */
-function pickFields<T extends Record<string, unknown>>(
+export function pickFields<T extends Record<string, unknown>>(
 	data: T,
 	fields: readonly string[],
 ): Partial<T> {
@@ -82,11 +83,37 @@ export function printTable(
 	}
 }
 
+// ── Paginated table output ───────────────────────────────────────────
+
+/** Print a paginated result as a table (human) or JSON with nextCursor (--json). */
+export function printPaginatedTable(
+	result: PaginatedResult<Record<string, unknown>>,
+	columns: readonly Column[],
+	ctx: RunContext,
+	jsonResult: PaginatedResult<Record<string, unknown>> = result,
+): void {
+	if (ctx.json) {
+		const filtered = jsonResult.items.map((row) => pickFields(row, ctx.fields));
+		printJson({ items: filtered, nextCursor: jsonResult.nextCursor });
+		return;
+	}
+
+	printTable(result.items, columns, ctx);
+
+	if (result.nextCursor) {
+		process.stderr.write(`\nNext page: --cursor ${result.nextCursor}\n`);
+	}
+}
+
 // ── Detail output ────────────────────────────────────────────────────
 
 /** Print a single entity detail view (human) or JSON object (--json). */
-export function printDetail(data: Record<string, unknown>, ctx: RunContext): void {
-	const filtered = pickFields(data, ctx.fields);
+export function printDetail(
+	data: Record<string, unknown>,
+	ctx: RunContext,
+	jsonData: Record<string, unknown> = data,
+): void {
+	const filtered = pickFields(ctx.json ? jsonData : data, ctx.fields);
 
 	if (ctx.json) {
 		printJson(filtered);

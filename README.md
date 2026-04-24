@@ -4,7 +4,7 @@ Personal CLI for Beli restaurant functionality. Gives agents and humans access t
 
 ## Status
 
-**Phase 2 In Progress** — Authentication and session management is scaffolded. `beli auth bootstrap|status|logout`, keychain-backed session storage, and config file management are implemented. Live token validation is still stubbed until API endpoints are mapped.
+**Phase 3 Complete** — Read-only commands are implemented against a fixture-backed stub adapter. All 11 commands across 5 groups work in both human and JSON output modes with pagination support. Live API calls will be wired in when the real HTTP adapter is built.
 
 ## Prerequisites
 
@@ -65,6 +65,38 @@ beli auth logout --yes       # Skip confirmation prompt
 Session secrets are stored in macOS Keychain. Non-secret config lives in `~/.config/beli-cli/config.json`.
 When bootstrapping without a known Beli user ID, the session is stored with an unknown identity until live validation or a later command can resolve it.
 
+## Read Commands
+
+All read commands require authentication (`beli auth bootstrap` first). All support `--json` and `--fields` flags. Paginated commands support `--cursor` and `--limit`.
+
+Human output is flattened for terminal readability. JSON output preserves normalized domain objects, including arrays, nested objects, numbers, and `null`, so agent and script consumers can rely on typed data.
+
+```sh
+# Profile
+beli me profile                  # Show your profile
+beli me stats                    # Show your stats
+beli me stats --json             # Stats as JSON
+
+# Restaurants
+beli restaurants search pizza    # Search by name or cuisine
+beli restaurants search pizza --limit 5  # Limit results
+beli restaurants get rest_001    # Get restaurant details
+
+# Lists
+beli lists ls                    # List your restaurant lists
+beli lists ls --limit 1          # Paginated with cursor hint
+beli lists get list_001          # Get list details
+
+# Activity
+beli activity list               # Your recent activity
+beli activity list --user user_002  # Another user's activity
+
+# Social
+beli social feed                 # Your social feed
+beli social followers            # List your followers
+beli social following            # List who you follow
+```
+
 ## Global Flags
 
 | Flag | Description |
@@ -79,5 +111,6 @@ When bootstrapping without a known Beli user ID, the session is stored with an u
 
 ## Next Steps
 
-- Phase 3: Read-only core functionality (search, lists, activity, social)
 - Phase 4: Write operations (lists, ratings, reviews)
+- Real HTTP adapter for the Beli private mobile API
+- Replace stub token validation with live session validation once authenticated endpoints are configured

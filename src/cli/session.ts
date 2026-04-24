@@ -11,3 +11,11 @@ export async function requireSession(store: SessionStore, profile: string): Prom
 	}
 	return session;
 }
+
+export async function validateSession(isValid: () => Promise<boolean>): Promise<void> {
+	if (!(await isValid())) {
+		throw new AuthRequiredError(
+			`Not authenticated. Run "beli auth bootstrap" to set up a session.`,
+		);
+	}
+}

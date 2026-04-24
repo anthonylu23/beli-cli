@@ -10,8 +10,9 @@ This plan assumes there is no public Beli API and that any usable integration wi
 
 - Phase 0 is complete.
 - Phase 1 is complete and merged to `main`.
-- Phase 2 is in progress.
-- Phases 3 through 5 remain.
+- Phase 2 is complete for local stub-backed authentication/session management.
+- Phase 3 is complete for fixture-backed read-only commands.
+- Phases 4 and 5 remain.
 
 Completed work now in the repo:
 
@@ -23,6 +24,7 @@ Completed work now in the repo:
 - Shared `RunContext` now carries `--input <source>` through command execution.
 - Phase 1 test coverage includes unit tests, in-process command tests, and end-to-end subprocess tests for stdout, stderr, flag handling, and exit codes.
 - Phase 2 scaffolding includes auth commands, session/config models, keychain/config persistence, and isolated auth/keychain tests.
+- Phase 3 read commands are wired against a session-aware fixture adapter with strict pagination/location validation and normalized JSON output.
 
 ## Phase 0: Foundation And Guardrails
 
@@ -68,29 +70,33 @@ Completed work now in the repo:
 
 ## Phase 2: Authentication And Session Management
 
-- Implement `beli auth bootstrap|status|logout`.
-- Design `bootstrap` as a guided one-time local mobile-assisted session import flow.
-- Validate imported session state immediately against a lightweight authenticated endpoint.
-- Store session artifacts securely in macOS Keychain.
-- Store non-secret config in `~/.config/beli-cli/config.json`.
-- Avoid storing raw passwords by default.
-- Handle auth expiry consistently:
+- Status: complete for local stub-backed development.
+
+- Completed: implement `beli auth bootstrap|status|logout`.
+- Completed: design `bootstrap` as a guided one-time local mobile-assisted session import flow.
+- Completed: stub token validation until live endpoints are configured.
+- Completed: store session artifacts securely in macOS Keychain.
+- Completed: store non-secret config in `~/.config/beli-cli/config.json`.
+- Completed: avoid storing raw passwords by default.
+- Completed for read commands: handle auth expiry consistently through adapter session validation:
   - Detect expired or invalid sessions.
   - Return exit code `3`.
   - Print a clear re-auth path for both humans and agents.
 
 ## Phase 3: Read-Only Core Functionality
 
-- Implement read flows first to reduce risk while the adapter stabilizes.
-- Ship these command groups:
+- Status: complete against fixture-backed stub data.
+- Completed: implement read flows first to reduce risk while the adapter stabilizes.
+- Completed: ship these command groups:
   - `beli me profile|stats`
   - `beli restaurants search|get`
   - `beli lists ls|get`
   - `beli activity list`
   - `beli social feed|followers|following`
-- Normalize upstream responses into stable domain objects before rendering.
-- Support pagination and filtering in a way that remains stable in JSON mode even if upstream formats drift.
-- Add fixture-backed contract coverage for each supported read surface.
+- Completed: normalize upstream responses into stable domain objects before rendering.
+- Completed: support pagination and filtering in a way that remains stable in JSON mode even if upstream formats drift.
+- Completed: emit normalized domain-shaped JSON while preserving flattened human table output.
+- Completed: add fixture-backed contract coverage for each supported read surface.
 
 ## Phase 4: Write Functionality
 
