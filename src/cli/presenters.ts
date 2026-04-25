@@ -1,4 +1,4 @@
-import type { FeedItem, List, Restaurant, User } from "@core/entities.ts";
+import type { FeedItem, List, Rating, Restaurant, Review, User } from "@core/entities.ts";
 import type { PaginatedResult } from "@core/pagination.ts";
 
 /** Treat a normalized entity as a top-level field-filterable output record. */
@@ -46,6 +46,32 @@ export function flattenList(l: List): Record<string, unknown> {
 		entryCount: l.entryCount,
 		createdAt: l.createdAt,
 		updatedAt: l.updatedAt,
+	};
+}
+
+export function flattenRating(r: Rating): Record<string, unknown> {
+	return {
+		id: r.id,
+		restaurantId: r.restaurantId,
+		score: r.score,
+		sentiment: r.sentiment,
+		rank: r.rank,
+		favoriteDishes: r.favoriteDishes.join(", "),
+		tags: r.tags.join(", "),
+		createdAt: r.createdAt,
+		updatedAt: r.updatedAt,
+	};
+}
+
+export function flattenReview(r: Review): Record<string, unknown> {
+	return {
+		id: r.id,
+		restaurantId: r.restaurantId,
+		ratingId: r.ratingId,
+		body: r.body,
+		imageUrls: r.imageUrls.join(", "),
+		createdAt: r.createdAt,
+		updatedAt: r.updatedAt,
 	};
 }
 

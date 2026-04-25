@@ -11,18 +11,26 @@ import { registerActivityCommand } from "./commands/activity.ts";
 import { registerAuthCommand } from "./commands/auth.ts";
 import { registerListsCommand } from "./commands/lists.ts";
 import { registerMeCommand } from "./commands/me.ts";
+import { registerRatingsCommand } from "./commands/ratings.ts";
 import { registerRawCommand } from "./commands/raw.ts";
 import { registerRestaurantsCommand } from "./commands/restaurants.ts";
+import { registerReviewsCommand } from "./commands/reviews.ts";
 import { registerSocialCommand } from "./commands/social.ts";
 import { addGlobalFlags } from "./flags.ts";
 
 export const VERSION = "0.1.0";
 
 type AuthCommandOptions = Parameters<typeof registerAuthCommand>[1];
+type ListsCommandOptions = Parameters<typeof registerListsCommand>[3];
+type RatingsCommandOptions = Parameters<typeof registerRatingsCommand>[3];
+type ReviewsCommandOptions = Parameters<typeof registerReviewsCommand>[3];
 export type AdapterFactory = (session: Session) => BeliAdapter;
 
 export interface ProgramOptions {
 	readonly auth?: AuthCommandOptions;
+	readonly lists?: ListsCommandOptions;
+	readonly ratings?: RatingsCommandOptions;
+	readonly reviews?: ReviewsCommandOptions;
 	readonly createAdapter?: AdapterFactory;
 	readonly createSessionStore?: () => SessionStore;
 }
@@ -50,7 +58,9 @@ export function createProgram(options: ProgramOptions = {}): Command {
 	registerRawCommand(program);
 	registerMeCommand(program, createAdapter, createStore);
 	registerRestaurantsCommand(program, createAdapter, createStore);
-	registerListsCommand(program, createAdapter, createStore);
+	registerListsCommand(program, createAdapter, createStore, options.lists);
+	registerRatingsCommand(program, createAdapter, createStore, options.ratings);
+	registerReviewsCommand(program, createAdapter, createStore, options.reviews);
 	registerActivityCommand(program, createAdapter, createStore);
 	registerSocialCommand(program, createAdapter, createStore);
 

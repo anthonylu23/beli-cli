@@ -23,7 +23,10 @@ describe("createProgram", () => {
 		expect(optionNames.filter((name: string) => name === "json")).toHaveLength(1);
 		expect(optionNames.filter((name: string) => name === "input")).toHaveLength(1);
 
-		expect(program.commands.map((command: { name(): string }) => command.name())).toContain("raw");
+		const commandNames = program.commands.map((command: { name(): string }) => command.name());
+		expect(commandNames).toContain("raw");
+		expect(commandNames).toContain("ratings");
+		expect(commandNames).toContain("reviews");
 	});
 
 	test("threads top-level session store into auth commands", async () => {

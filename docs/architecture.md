@@ -82,7 +82,9 @@ The CLI layer uses **Commander.js** for argument parsing and subcommand registra
 | `src/cli/commands/auth.ts` | `beli auth bootstrap\|status\|logout` — session management |
 | `src/cli/commands/me.ts` | `beli me profile\|stats` |
 | `src/cli/commands/restaurants.ts` | `beli restaurants search\|get` |
-| `src/cli/commands/lists.ts` | `beli lists ls\|get` |
+| `src/cli/commands/lists.ts` | `beli lists ls\|get\|create\|update\|delete\|add-entry\|remove-entry` |
+| `src/cli/commands/ratings.ts` | `beli ratings create\|update\|delete` |
+| `src/cli/commands/reviews.ts` | `beli reviews create\|update\|delete` |
 | `src/cli/commands/activity.ts` | `beli activity list` |
 | `src/cli/commands/social.ts` | `beli social feed\|followers\|following` |
 | `src/cli/commands/raw.ts` | `beli raw <resource>` — experimental low-level access |
@@ -134,20 +136,20 @@ The `src/infra/` layer handles platform-specific I/O for session persistence.
 
 Path: `~/.config/beli-cli/config.json`. Created on first write with `0600` permissions. Profiles keyed by name.
 
-## Adapter Layer (Phase 3)
+## Adapter Layer (Phases 3-4)
 
 | File | Purpose |
 |---|---|
-| `src/adapters/private-mobile/contract.ts` | `BeliAdapter` interface — all read methods |
-| `src/adapters/private-mobile/stub.ts` | `createStubAdapter()` — fixture-backed in-memory implementation |
+| `src/adapters/private-mobile/contract.ts` | `BeliAdapter` interface — read methods plus Phase 4 mutations |
+| `src/adapters/private-mobile/stub.ts` | `createStubAdapter()` — fixture-backed in-memory implementation with per-instance mutations |
 | `src/adapters/private-mobile/fixtures.ts` | Typed fixture data for all entities |
 | `src/adapters/private-mobile/validate.ts` | `validateToken()` — stubbed token validation |
 
 ### Stub adapter
 
-`createStubAdapter()` returns a `BeliAdapter` backed entirely by in-memory fixture data. All paginated methods use a shared `paginate()` helper that accepts a stringified index cursor and limit. Lookup methods throw `UpstreamError(404)` for unknown IDs.
+`createStubAdapter()` returns a `BeliAdapter` backed by fixture data. All paginated methods use a shared `paginate()` helper that accepts a stringified index cursor and limit. Lookup methods throw `UpstreamError(404)` for unknown IDs.
 
-This enables full command testing and development without a real API endpoint.
+Mutations copy fixture lists, ratings, and reviews into adapter-local mutable state, so write operations persist only for the current adapter instance. Fixture files are never modified. This enables full command testing and development without a real API endpoint.
 
 ### Read command pattern
 
@@ -160,12 +162,25 @@ Each command group follows the same DI pattern:
 
 Pagination cursors in the stub adapter are unsigned integer index strings. Malformed or out-of-range cursors raise `ValidationError` so command behavior matches the future live adapter contract.
 
+### Write command pattern (Phase 4)
+
+Write commands reuse the read-command DI pattern and add two command dependencies for tests: JSON input reading and delete confirmation. Create/update commands accept flags plus `--input -` JSON; command flags override JSON payload fields. Delete supports `--yes` to skip confirmation.
+
+Successful create/update commands print the resulting normalized entity. List entry mutations print the resulting normalized `List`. Delete emits no stdout in human mode and `{ "deleted": true, "id": "..." }` in JSON mode. Validation errors use exit code `2`; auth failures use `3`; missing upstream resources use `4`.
+
+Ratings derive sentiment from score in the stub adapter: `>= 7` positive, `>= 4` neutral, otherwise negative. Reviews may link to an existing rating through `ratingId`, and image URLs are treated as string data without network validation.
+
 ### Test strategy
 
 - Auth command tests inject an in-memory `SessionStore` and stubbed validation/bootstrap dependencies so they do not touch the real keychain or user config.
-- Read command tests use `test-helpers.ts` with shared `runProgram()`, `createMemorySessionStore()`, and `TEST_SESSION` fixtures.
-- Stub adapter tests verify the contract: pagination, filtering, malformed cursors, not-found errors, and validation failures.
+- Read and write command tests use `test-helpers.ts` with shared `runProgram()`, `createMemorySessionStore()`, and `TEST_SESSION` fixtures.
+- Stub adapter tests verify the contract: pagination, filtering, malformed cursors, not-found errors, list/rating/review mutations, duplicate list entries, sentiment derivation, and validation failures.
 - Keychain tests use an injected security-command runner to verify argument shape and secret-handling behavior without invoking the real macOS keychain.
+
+## Next Steps
+
+- Build the real private mobile HTTP adapter and response mappers.
+- Replace stub token validation with live session validation once authenticated endpoints are configured.
 
 ## Runtime Boundaries
 

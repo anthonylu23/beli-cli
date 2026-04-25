@@ -4,7 +4,7 @@ Personal CLI for Beli restaurant functionality. Gives agents and humans access t
 
 ## Status
 
-**Phase 3 Complete** — Read-only commands are implemented against a fixture-backed stub adapter. All 11 commands across 5 groups work in both human and JSON output modes with pagination support. Live API calls will be wired in when the real HTTP adapter is built.
+**Phase 4 Writes Complete** — Read-only commands plus list, rating, and review mutation commands are implemented against a fixture-backed stub adapter. Commands work in both human and JSON output modes, with pagination for list/read surfaces and structured JSON input for writes. Live API calls will be wired in when the real HTTP adapter is built.
 
 ## Prerequisites
 
@@ -97,6 +97,59 @@ beli social followers            # List your followers
 beli social following            # List who you follow
 ```
 
+## Write Commands
+
+Write commands require authentication. Create/update commands accept flags or JSON via `--input -`; when both are provided, flags take precedence. The stub adapter stores mutations in memory for the current process only.
+
+```sh
+# Lists
+beli lists create --name "Weekend Ideas"
+beli lists create --name "Shared Spots" --description "For friends" --visibility public
+beli --json --input - lists create < payload.json
+
+beli lists update list_001 --name "NYC Pizza"
+beli --input - lists update list_001 < payload.json
+
+beli lists add-entry list_001 --restaurant rest_002 --notes "Try brunch"
+beli --input - lists add-entry list_001 < entry.json
+beli lists remove-entry list_001 --restaurant rest_002
+
+beli lists delete list_001 --yes
+beli --json lists delete list_001 --yes
+
+# Ratings
+beli ratings create --restaurant rest_001 --score 8.7
+beli ratings create --restaurant rest_002 --score 8.9 --favorite-dishes "Morning bun" --tags brunch
+beli --input - ratings create < rating.json
+beli ratings update rate_001 --score 7.5 --tags "classic,reliable"
+beli ratings delete rate_001 --yes
+
+# Reviews
+beli reviews create --restaurant rest_001 --body "Great slice" --rating rate_001
+beli reviews create --restaurant rest_002 --body "Worth the wait" --image-urls "https://example.com/one.jpg"
+beli --input - reviews create < review.json
+beli reviews update rev_001 --body "Updated review"
+beli reviews delete rev_001 --yes
+```
+
+Example JSON payloads:
+
+```json
+{ "name": "Weekend Ideas", "description": "Try soon", "visibility": "private" }
+```
+
+```json
+{ "restaurantId": "rest_002", "notes": "Morning buns" }
+```
+
+```json
+{ "restaurantId": "rest_001", "score": 8.7, "favoriteDishes": ["Pepperoni slice"], "tags": ["classic"] }
+```
+
+```json
+{ "restaurantId": "rest_001", "ratingId": "rate_001", "body": "Great slice", "imageUrls": [] }
+```
+
 ## Global Flags
 
 | Flag | Description |
@@ -111,6 +164,5 @@ beli social following            # List who you follow
 
 ## Next Steps
 
-- Phase 4: Write operations (lists, ratings, reviews)
 - Real HTTP adapter for the Beli private mobile API
 - Replace stub token validation with live session validation once authenticated endpoints are configured
