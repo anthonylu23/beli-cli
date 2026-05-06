@@ -12,7 +12,8 @@ This plan assumes there is no public Beli API and that any usable integration wi
 - Phase 1 is complete and merged to `main`.
 - Phase 2 is complete for local stub-backed authentication/session management.
 - Phase 3 is complete for fixture-backed read-only commands.
-- Phases 4 and 5 remain.
+- Phase 4 is complete for fixture-backed write commands.
+- Phase 5 is active for verification, hardening, packaging, and the real private mobile adapter.
 
 Completed work now in the repo:
 
@@ -25,6 +26,7 @@ Completed work now in the repo:
 - Phase 1 test coverage includes unit tests, in-process command tests, and end-to-end subprocess tests for stdout, stderr, flag handling, and exit codes.
 - Phase 2 scaffolding includes auth commands, session/config models, keychain/config persistence, and isolated auth/keychain tests.
 - Phase 3 read commands are wired against a session-aware fixture adapter with strict pagination/location validation and normalized JSON output.
+- Phase 4 write commands cover list, rating, and review mutations against the fixture-backed stub adapter, with JSON input support and readback-friendly normalized output.
 
 ## Phase 0: Foundation And Guardrails
 
@@ -100,25 +102,31 @@ Completed work now in the repo:
 
 ## Phase 4: Write Functionality
 
-- After read flows are stable, add core write operations:
-  - `beli lists create|update|delete|add|remove`
-  - `beli ratings set|delete`
+- Status: complete against fixture-backed stub data.
+- Completed: add core write operations:
+  - `beli lists create|update|delete|add-entry|remove-entry`
+  - `beli ratings create|update|delete`
   - `beli reviews create|update|delete`
-- Require strict schema validation on all write inputs.
-- Prefer idempotent or safely repeatable command behavior where possible.
-- After each write, support a readback path so agents can verify resulting state.
-- Stop short of implementing any write surface that proves too unstable or unsafe with the private adapter.
+- Completed: validate write inputs from flags and `--input -` JSON before adapter calls.
+- Completed: make command flags take precedence over JSON payload fields.
+- Completed: return normalized entities after create/update/list-entry writes so agents can verify resulting state.
+- Completed: keep write mutations adapter-local and in-memory until the private mobile HTTP adapter is safe to enable.
 
 ## Phase 5: Verification, Hardening, And Release
 
-- Completed for Phase 1:
+- Status: active.
+- Completed for Phases 1-4:
   - command parsing
   - formatter behavior
   - error routing and exit codes
   - subprocess-level CLI behavior
-- Remaining for later phases:
-  - schema validation
-  - session storage
+  - write input validation
+  - fixture-backed session storage tests
+- Active hardening:
+  - fail closed on malformed config files instead of overwriting them with defaults
+  - avoid split-state session saves by sequencing metadata and keychain writes with rollback
+  - align package and CLI versions through a shared version source
+- Remaining for the real adapter:
   - mapper correctness
 - Add contract tests using sanitized recorded fixtures for:
   - empty states
@@ -134,6 +142,7 @@ Completed work now in the repo:
   - an agent can call supported commands with `--json` and get deterministic stdout plus reliable exit codes
   - expired sessions fail cleanly without leaking secrets
 - Package the CLI for local installation and document Bun-based development and execution workflows.
+- Build the real private mobile HTTP adapter behind the existing `BeliAdapter` contract, starting with read-only endpoints and enabling writes only after mapped request/response behavior is verified.
 
 ## Deferred For Later
 

@@ -1,5 +1,6 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { ValidationError } from "@core/errors.ts";
 
 /** Per-profile config stored on disk (no secrets). */
 export interface ProfileConfig {
@@ -48,15 +49,18 @@ export function createConfigStore(configDir?: string): ConfigStore {
 		const file = Bun.file(filePath);
 		if (!(await file.exists())) return DEFAULT_CONFIG;
 
+		let raw: unknown;
 		try {
-			const raw = await file.json();
-			if (raw && typeof raw === "object" && "profiles" in raw) {
-				return raw as ConfigFile;
-			}
-			return DEFAULT_CONFIG;
+			raw = await file.json();
 		} catch {
-			return DEFAULT_CONFIG;
+			throw invalidConfigError(filePath);
 		}
+
+		if (!isConfigFile(raw)) {
+			throw invalidConfigError(filePath);
+		}
+
+		return raw;
 	}
 
 	async function save(config: ConfigFile): Promise<void> {
@@ -95,4 +99,20 @@ export function createConfigStore(configDir?: string): ConfigStore {
 			return true;
 		},
 	};
+}
+
+function invalidConfigError(filePath: string): ValidationError {
+	return new ValidationError(
+		`Config file at ${filePath} is invalid. Repair or remove it before continuing.`,
+		"config",
+	);
+}
+
+function isConfigFile(value: unknown): value is ConfigFile {
+	if (!isRecord(value)) return false;
+	return isRecord(value.profiles);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

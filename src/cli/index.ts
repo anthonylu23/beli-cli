@@ -17,8 +17,9 @@ import { registerRestaurantsCommand } from "./commands/restaurants.ts";
 import { registerReviewsCommand } from "./commands/reviews.ts";
 import { registerSocialCommand } from "./commands/social.ts";
 import { addGlobalFlags } from "./flags.ts";
+import { VERSION } from "./version.ts";
 
-export const VERSION = "0.1.0";
+export { VERSION } from "./version.ts";
 
 type AuthCommandOptions = Parameters<typeof registerAuthCommand>[1];
 type ListsCommandOptions = Parameters<typeof registerListsCommand>[3];

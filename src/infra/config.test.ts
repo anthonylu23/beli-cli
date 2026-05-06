@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ValidationError } from "@core/errors.ts";
 import { createConfigStore } from "./config.ts";
 import type { ConfigStore, ProfileConfig } from "./config.ts";
 
@@ -66,12 +67,27 @@ describe("ConfigStore", () => {
 		expect(deleted).toBeFalse();
 	});
 
-	it("handles malformed config file gracefully", async () => {
+	it("throws for malformed config files", async () => {
 		const filePath = join(dir, "config.json");
 		await Bun.write(filePath, "not json");
 
-		const config = await store.load();
-		expect(config).toEqual({ profiles: {} });
+		await expect(store.load()).rejects.toThrow(ValidationError);
+		await expect(store.load()).rejects.toThrow(filePath);
+	});
+
+	it("throws for config files with the wrong top-level shape", async () => {
+		const filePath = join(dir, "config.json");
+		await Bun.write(filePath, JSON.stringify({ profiles: [] }));
+
+		await expect(store.load()).rejects.toThrow(ValidationError);
+	});
+
+	it("does not overwrite malformed config files when setting a profile", async () => {
+		const filePath = join(dir, "config.json");
+		await Bun.write(filePath, "not json");
+
+		await expect(store.setProfile("default", testProfile)).rejects.toThrow(ValidationError);
+		expect(await readFile(filePath, "utf8")).toBe("not json");
 	});
 
 	it("creates config directory on first write", async () => {

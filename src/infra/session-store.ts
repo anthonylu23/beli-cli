@@ -34,17 +34,26 @@ export function createSessionStore(keychain: KeychainStore, config: ConfigStore)
 
 		async save(profile: string, session: Session): Promise<void> {
 			const credentialsJson = JSON.stringify(session.credentials);
+			const previousMetadata = await config.getProfile(profile);
 
-			await Promise.all([
-				keychain.set(profile, credentialsJson),
-				config.setProfile(profile, {
-					userId: session.metadata.userId,
-					username: session.metadata.username,
-					displayName: session.metadata.displayName,
-					bootstrappedAt: session.metadata.bootstrappedAt,
-					lastValidatedAt: session.metadata.lastValidatedAt,
-				}),
-			]);
+			await config.setProfile(profile, {
+				userId: session.metadata.userId,
+				username: session.metadata.username,
+				displayName: session.metadata.displayName,
+				bootstrappedAt: session.metadata.bootstrappedAt,
+				lastValidatedAt: session.metadata.lastValidatedAt,
+			});
+
+			try {
+				await keychain.set(profile, credentialsJson);
+			} catch (error) {
+				if (previousMetadata) {
+					await config.setProfile(profile, previousMetadata);
+				} else {
+					await config.deleteProfile(profile);
+				}
+				throw error;
+			}
 		},
 
 		async delete(profile: string): Promise<void> {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { VERSION, createProgram } from "./index.ts";
+import { createProgram } from "./index.ts";
 import { TEST_SESSION, createMemorySessionStore, runProgram } from "./test-helpers.ts";
+import { VERSION } from "./version.ts";
 
 describe("createProgram", () => {
 	test("registers root metadata, global flags, and subcommands", () => {
@@ -50,5 +51,12 @@ describe("createProgram", () => {
 
 		expect(result.exitCode).toBe(0);
 		expect(JSON.parse(result.stdout).profile).toBe("default");
+	});
+
+	test("package version matches shared CLI version", async () => {
+		const pkg = (await Bun.file(new URL("../../package.json", import.meta.url)).json()) as {
+			version?: string;
+		};
+		expect(pkg.version).toBe(VERSION);
 	});
 });

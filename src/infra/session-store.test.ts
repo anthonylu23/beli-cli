@@ -124,6 +124,36 @@ describe("SessionStore", () => {
 		expect(config.profiles.get("default")?.userId).toBe("user_123");
 	});
 
+	it("removes newly written metadata when keychain save fails", async () => {
+		keychain.set = async () => {
+			throw new Error("keychain write failed");
+		};
+
+		await expect(store.save("default", testSession)).rejects.toThrow("keychain write failed");
+
+		expect(keychain.data.has("default")).toBeFalse();
+		expect(config.profiles.has("default")).toBeFalse();
+	});
+
+	it("restores previous metadata when keychain save fails during replacement", async () => {
+		const previousMetadata: ProfileConfig = {
+			...testMetadata,
+			userId: "user_old",
+			username: "olduser",
+			displayName: "Old User",
+		};
+		config.profiles.set("default", previousMetadata);
+		keychain.data.set("default", JSON.stringify({ ...testCredentials, authToken: "tok_old" }));
+		keychain.set = async () => {
+			throw new Error("keychain write failed");
+		};
+
+		await expect(store.save("default", testSession)).rejects.toThrow("keychain write failed");
+
+		expect(config.profiles.get("default")).toEqual(previousMetadata);
+		expect(JSON.parse(keychain.data.get("default") ?? "").authToken).toBe("tok_old");
+	});
+
 	it("deletes from both stores", async () => {
 		await store.save("default", testSession);
 		await store.delete("default");
