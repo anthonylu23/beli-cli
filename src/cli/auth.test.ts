@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import type { BeliAdapter } from "@adapters/private-mobile/contract.ts";
 import type { BootstrapInput, Session, SessionStore } from "@core/session.ts";
 import { timestamp } from "@core/types.ts";
 import { createProgram } from "./index.ts";
@@ -74,6 +75,7 @@ async function runProgram(
 				  }
 				| undefined;
 		}>;
+		readonly createAdapter?: (session: Session) => BeliAdapter;
 	} = {},
 ) {
 	const stdout = captureStream(process.stdout);
@@ -112,6 +114,7 @@ async function runProgram(
 				confirm,
 				readBootstrapInput,
 				validateToken,
+				...(options.createAdapter ? { createAdapter: options.createAdapter } : {}),
 			},
 		}).parseAsync(["bun", "beli", ...args]);
 	} catch (error) {
@@ -268,7 +271,7 @@ describe("beli auth", () => {
 		expect(result.stdout).toContain("profile");
 		expect(result.stdout).toContain("default");
 		expect(result.stdout).toContain("authenticated");
-		expect(result.stdout).toContain("unverified");
+		expect(result.stdout).toContain("verified");
 		expect(result.stdout).toContain("userId");
 		expect(result.stdout).toContain("—");
 	});
@@ -301,8 +304,37 @@ describe("beli auth", () => {
 			displayName: "Test User",
 			bootstrappedAt: "2025-04-07T10:00:00.000Z",
 			lastValidatedAt: "2025-04-07T10:00:00.000Z",
-			authenticated: "unverified",
+			authenticated: "verified",
 		});
+	});
+
+	test("auth status exits 3 when session validation fails", async () => {
+		const store = createMemorySessionStore({
+			credentials: {
+				authToken: "token-123",
+				refreshToken: null,
+				userId: "user_123",
+			},
+			metadata: {
+				profile: "default",
+				userId: "user_123",
+				username: "tester",
+				displayName: "Test User",
+				bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),
+				lastValidatedAt: timestamp("2025-04-07T10:00:00.000Z"),
+			},
+		});
+
+		const result = await runProgram(["auth", "status"], {
+			store,
+			createAdapter: () =>
+				({
+					validateSession: async () => false,
+				}) as BeliAdapter,
+		});
+
+		expect(result.exitCode).toBe(3);
+		expect(result.stderr).toContain("Not authenticated");
 	});
 
 	test("auth logout with no session is idempotent", async () => {

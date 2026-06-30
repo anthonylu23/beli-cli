@@ -4,7 +4,7 @@ Personal CLI for Beli restaurant functionality. Gives agents and humans access t
 
 ## Status
 
-**Phase 4 Writes Complete** — Read-only commands plus list, rating, and review mutation commands are implemented against a fixture-backed stub adapter. Commands work in both human and JSON output modes, with pagination for list/read surfaces and structured JSON input for writes. Live API calls will be wired in when the real HTTP adapter is built.
+**Phase 5 Live MVP Scaffold** — Read-only commands plus list, rating, and review mutation commands are implemented against a fixture-backed stub adapter by default. An experimental live private-mobile adapter is available behind `BELI_ADAPTER=live` for the first MVP read/list-write flow once sanitized endpoint captures are available.
 
 ## Prerequisites
 
@@ -26,6 +26,7 @@ bun run dev -- --experimental raw foo  # Experimental raw resource access
 bun run dev -- --json --experimental raw foo  # Raw placeholder output as JSON
 bun test                           # Run tests
 bun run test:coverage              # Run tests with Bun coverage reporting
+bun run smoke:live                 # Env-gated live adapter smoke flow
 bun run typecheck                  # Type-check without emitting
 bun run check                      # Lint and format check (Biome)
 bun run check:fix                  # Auto-fix lint and format issues
@@ -64,6 +65,29 @@ beli auth logout --yes       # Skip confirmation prompt
 
 Session secrets are stored in macOS Keychain. Non-secret config lives in `~/.config/beli-cli/config.json`.
 When bootstrapping without a known Beli user ID, the session is stored with an unknown identity until live validation or a later command can resolve it.
+
+## Experimental Live Adapter
+
+The CLI still defaults to the fixture-backed stub adapter. To opt in to network calls, set:
+
+```sh
+BELI_ADAPTER=live
+BELI_API_BASE_URL=https://captured-api-host.example
+```
+
+`BELI_API_BASE_URL` is required until sanitized production endpoint notes are checked in. Live mode currently implements only the MVP surfaces: session validation, `me`, restaurant search, list listing/get/create/delete, and list entry add/remove. Other live methods fail with the existing unsupported-feature exit path.
+
+The live smoke flow is explicitly gated:
+
+```sh
+BELI_ADAPTER=live \
+BELI_API_BASE_URL=https://captured-api-host.example \
+BELI_LIVE_SMOKE=1 \
+BELI_SMOKE_RESTAURANT_QUERY="known safe restaurant query" \
+bun run smoke:live
+```
+
+The smoke script creates a private test list, adds the first matching restaurant, verifies readback, removes the entry, and deletes the list it created.
 
 ## Read Commands
 
@@ -164,5 +188,6 @@ Example JSON payloads:
 
 ## Next Steps
 
-- Real HTTP adapter for the Beli private mobile API
-- Replace stub token validation with live session validation once authenticated endpoints are configured
+- Add sanitized captured endpoint notes for the real Beli private mobile host and path mapping
+- Expand the live adapter beyond the MVP list flow after mapper fixtures are verified
+- Run env-gated live smoke against a dedicated personal test account

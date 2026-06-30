@@ -1,0 +1,22 @@
+{
+	"restaurants": [
+		{
+			"id": "rest_sanitized_001",
+			"name": "Sanitized Pizza",
+			"location": {
+				"latitude": 40,
+				"longitude": -73,
+				"address": null,
+				"city": "New York",
+				"state": "NY",
+				"country": "US",
+				"postal_code": null
+			},
+			"image_url": null,
+			"price_level": 2,
+			"cuisines": ["Pizza"],
+			"tags": ["casual"]
+		}
+	],
+	"next_cursor": null
+}

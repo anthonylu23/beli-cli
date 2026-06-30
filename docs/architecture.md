@@ -142,6 +142,8 @@ Path: `~/.config/beli-cli/config.json`. Created on first write with `0600` permi
 |---|---|
 | `src/adapters/private-mobile/contract.ts` | `BeliAdapter` interface — read methods plus Phase 4 mutations |
 | `src/adapters/private-mobile/stub.ts` | `createStubAdapter()` — fixture-backed in-memory implementation with per-instance mutations |
+| `src/adapters/private-mobile/live.ts` | `createLiveAdapter()` — experimental HTTP implementation for the live MVP flow |
+| `src/adapters/private-mobile/mappers.ts` | Fail-closed response mappers from sanitized private-mobile wire fixtures |
 | `src/adapters/private-mobile/fixtures.ts` | Typed fixture data for all entities |
 | `src/adapters/private-mobile/validate.ts` | `validateToken()` — stubbed token validation |
 
@@ -150,6 +152,14 @@ Path: `~/.config/beli-cli/config.json`. Created on first write with `0600` permi
 `createStubAdapter()` returns a `BeliAdapter` backed by fixture data. All paginated methods use a shared `paginate()` helper that accepts a stringified index cursor and limit. Lookup methods throw `UpstreamError(404)` for unknown IDs.
 
 Mutations copy fixture lists, ratings, and reviews into adapter-local mutable state, so write operations persist only for the current adapter instance. Fixture files are never modified. This enables full command testing and development without a real API endpoint.
+
+### Live adapter
+
+The live adapter is opt-in with `BELI_ADAPTER=live`; the stub remains the default. `BELI_API_BASE_URL` is required until sanitized endpoint notes define a production host. The first MVP implementation supports only session validation, profile lookup, restaurant search, list listing/get/create/delete, and list entry add/remove. Other methods throw `UnsupportedFeatureError` so unsupported live surfaces fail explicitly.
+
+The adapter sends bearer tokens in the `Authorization` header and maps `401`/`403` to auth-required behavior, `404` to upstream not found, other non-2xx statuses to upstream failure, and malformed JSON or missing required response fields to schema mismatch errors. Error messages must not include tokens or raw response bodies.
+
+Sanitized mapper fixtures live under `docs/fixtures/private-mobile/`. Captured fixtures must remove secrets, stable personal identifiers, precise coordinates, and personal content before being checked in. Mappers accept the documented sanitized shape and common snake_case/camelCase aliases, but fail closed when required normalized fields are missing.
 
 ### Read command pattern
 
@@ -179,8 +189,9 @@ Ratings derive sentiment from score in the stub adapter: `>= 7` positive, `>= 4`
 
 ## Next Steps
 
-- Build the real private mobile HTTP adapter and response mappers.
-- Replace stub token validation with live session validation once authenticated endpoints are configured.
+- Add sanitized endpoint notes for the real private mobile host and paths.
+- Verify the live MVP list add/remove smoke flow against a dedicated personal test account.
+- Expand live adapter method coverage after each new surface has sanitized fixtures and mapper tests.
 
 ## Runtime Boundaries
 

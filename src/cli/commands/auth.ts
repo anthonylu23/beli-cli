@@ -1,8 +1,9 @@
 import type { Interface as ReadlineInterface } from "node:readline";
 import { createInterface } from "node:readline";
+import type { BeliAdapter } from "@adapters/private-mobile/contract.ts";
 import { validateToken } from "@adapters/private-mobile/validate.ts";
 import { AuthRequiredError } from "@core/errors.ts";
-import type { BootstrapInput, SessionStore } from "@core/session.ts";
+import type { BootstrapInput, Session, SessionStore } from "@core/session.ts";
 import { timestamp } from "@core/types.ts";
 import { createConfigStore } from "@infra/config.ts";
 import { createKeychainStore } from "@infra/keychain.ts";
@@ -12,10 +13,14 @@ import type { RunContext } from "../context.ts";
 import { resolveContext } from "../flags.ts";
 import { printDetail } from "../output.ts";
 import { runCommand } from "../run.ts";
+import { validateSession } from "../session.ts";
 import { readStdinJson } from "../stdin.ts";
+
+type AdapterFactory = (session: Session) => BeliAdapter;
 
 export interface AuthCommandDeps {
 	readonly createSessionStore?: () => SessionStore;
+	readonly createAdapter?: AdapterFactory;
 	readonly validateToken?: typeof validateToken;
 	readonly readBootstrapInput?: (ctx: RunContext) => Promise<BootstrapInput>;
 	readonly confirm?: (question: string) => Promise<boolean>;
@@ -28,6 +33,7 @@ function buildSessionStore(): SessionStore {
 /** Register the `beli auth` command group. */
 export function registerAuthCommand(program: Command, deps: AuthCommandDeps = {}): void {
 	const createStore = deps.createSessionStore ?? buildSessionStore;
+	const createAdapter = deps.createAdapter;
 	const validateAuthToken = deps.validateToken ?? validateToken;
 	const readBootstrapInput = deps.readBootstrapInput ?? gatherBootstrapInput;
 	const confirmAction = deps.confirm ?? confirm;
@@ -52,7 +58,7 @@ export function registerAuthCommand(program: Command, deps: AuthCommandDeps = {}
 		.description("Show current authentication status")
 		.action(async () => {
 			const ctx = resolveContext(program.opts() as Record<string, unknown>);
-			await runCommand(ctx, (c) => executeStatus(c, createStore()));
+			await runCommand(ctx, (c) => executeStatus(c, createStore(), createAdapter));
 		});
 
 	auth
@@ -185,13 +191,24 @@ function confirm(question: string): Promise<boolean> {
 
 // ── Status ──────────────────────────────────────────────────────────
 
-async function executeStatus(ctx: RunContext, store: SessionStore): Promise<void> {
+async function executeStatus(
+	ctx: RunContext,
+	store: SessionStore,
+	createAdapter?: AdapterFactory,
+): Promise<void> {
 	const session = await store.load(ctx.profile);
 
 	if (!session) {
 		throw new AuthRequiredError(
 			`No session found for profile "${ctx.profile}". Run "beli auth bootstrap" to authenticate.`,
 		);
+	}
+
+	let authenticated = "unverified";
+	if (createAdapter) {
+		const adapter = createAdapter(session);
+		await validateSession(() => adapter.validateSession());
+		authenticated = "verified";
 	}
 
 	printDetail(
@@ -202,7 +219,7 @@ async function executeStatus(ctx: RunContext, store: SessionStore): Promise<void
 			displayName: session.metadata.displayName ?? "—",
 			bootstrappedAt: session.metadata.bootstrappedAt,
 			lastValidatedAt: session.metadata.lastValidatedAt,
-			authenticated: "unverified",
+			authenticated,
 		},
 		ctx,
 	);

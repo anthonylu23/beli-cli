@@ -27,6 +27,7 @@ Completed work now in the repo:
 - Phase 2 scaffolding includes auth commands, session/config models, keychain/config persistence, and isolated auth/keychain tests.
 - Phase 3 read commands are wired against a session-aware fixture adapter with strict pagination/location validation and normalized JSON output.
 - Phase 4 write commands cover list, rating, and review mutations against the fixture-backed stub adapter, with JSON input support and readback-friendly normalized output.
+- Phase 5 live MVP scaffolding adds opt-in adapter selection, an experimental live HTTP adapter for session/profile/search/list flows, sanitized mapper fixtures, and an env-gated live smoke script.
 
 ## Phase 0: Foundation And Guardrails
 
@@ -126,9 +127,15 @@ Completed work now in the repo:
   - fail closed on malformed config files instead of overwriting them with defaults
   - avoid split-state session saves by sequencing metadata and keychain writes with rollback
   - align package and CLI versions through a shared version source
+- Completed for the live MVP scaffold:
+  - `BELI_ADAPTER=live` adapter selection with the fixture stub as default
+  - live HTTP adapter for `validateSession`, `getMe`, restaurant search, list listing/get/create/delete, and list entry add/remove
+  - fail-closed response mappers backed by sanitized fixture examples in `docs/fixtures/private-mobile`
+  - env-gated `bun run smoke:live` script for reversible list add/read/remove/delete validation
 - Remaining for the real adapter:
-  - mapper correctness
-- Add contract tests using sanitized recorded fixtures for:
+  - production host/path notes from sanitized captures
+  - mapper correctness against real captured response shapes
+- Add or expand contract tests using sanitized recorded fixtures for:
   - empty states
   - pagination
   - auth expiry
@@ -142,7 +149,7 @@ Completed work now in the repo:
   - an agent can call supported commands with `--json` and get deterministic stdout plus reliable exit codes
   - expired sessions fail cleanly without leaking secrets
 - Package the CLI for local installation and document Bun-based development and execution workflows.
-- Build the real private mobile HTTP adapter behind the existing `BeliAdapter` contract, starting with read-only endpoints and enabling writes only after mapped request/response behavior is verified.
+- Replace the provisional live path map with sanitized captured host/path notes, then run the env-gated smoke flow.
 
 ## Deferred For Later
 
@@ -160,3 +167,4 @@ Completed work now in the repo:
 - The tool is intended for the account owner’s personal use, not as a hosted service or shared team product.
 - The implementation should avoid features that require credential sharing or unsupported web scraping.
 - If the private mobile API cannot support safe authenticated writes, narrow the implementation to read-only flows until there is a better-approved integration path.
+- Live mode remains opt-in through `BELI_ADAPTER=live`; `BELI_API_BASE_URL` is required until sanitized endpoint notes are checked in.

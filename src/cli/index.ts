@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 
 import type { BeliAdapter } from "@adapters/private-mobile/contract.ts";
-import { createStubAdapter } from "@adapters/private-mobile/stub.ts";
 import type { Session, SessionStore } from "@core/session.ts";
 import { createConfigStore } from "@infra/config.ts";
 import { createKeychainStore } from "@infra/keychain.ts";
 import { createSessionStore } from "@infra/session-store.ts";
 import { Command } from "commander";
+import { createDefaultAdapterFactory } from "./adapter.ts";
 import { registerActivityCommand } from "./commands/activity.ts";
 import { registerAuthCommand } from "./commands/auth.ts";
 import { registerListsCommand } from "./commands/lists.ts";
@@ -48,12 +48,15 @@ export function createProgram(options: ProgramOptions = {}): Command {
 
 	addGlobalFlags(program);
 
-	const createAdapter = options.createAdapter ?? (() => createStubAdapter());
+	const createAdapter = options.createAdapter ?? createDefaultAdapterFactory();
 	const createStore = options.createSessionStore ?? buildSessionStore;
-	const authOptions: AuthCommandOptions =
-		options.auth?.createSessionStore || !options.createSessionStore
-			? options.auth
-			: { ...options.auth, createSessionStore: createStore };
+	const authOptions: AuthCommandOptions = {
+		...options.auth,
+		createAdapter: options.auth?.createAdapter ?? createAdapter,
+		...(options.auth?.createSessionStore || !options.createSessionStore
+			? {}
+			: { createSessionStore: createStore }),
+	};
 
 	registerAuthCommand(program, authOptions);
 	registerRawCommand(program);

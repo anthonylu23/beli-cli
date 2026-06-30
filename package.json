@@ -10,6 +10,7 @@
 		"dev": "bun run src/cli/index.ts",
 		"test": "bun test",
 		"test:coverage": "bun test --coverage",
+		"smoke:live": "bun run scripts/smoke-live.ts",
 		"check": "biome check .",
 		"check:fix": "biome check --fix .",
 		"typecheck": "tsc --noEmit"
