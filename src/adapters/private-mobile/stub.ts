@@ -24,11 +24,17 @@ import {
 	FIXTURE_VISITS,
 } from "./fixtures.ts";
 
+const MAX_PAGE_SIZE = 100;
+
 function paginate<T>(items: readonly T[], options?: PaginationOptions): PaginatedResult<T> {
 	const limit = options?.limit ?? 20;
+	if (!Number.isSafeInteger(limit) || limit <= 0) {
+		throw new ValidationError("limit must be a positive safe integer", "limit");
+	}
+	const pageSize = Math.min(limit, MAX_PAGE_SIZE);
 	const startIndex = parseCursor(options?.cursor, items.length);
-	const slice = items.slice(startIndex, startIndex + limit);
-	const nextIndex = startIndex + limit;
+	const slice = items.slice(startIndex, startIndex + pageSize);
+	const nextIndex = startIndex + pageSize;
 	return {
 		items: slice,
 		nextCursor: nextIndex < items.length ? String(nextIndex) : null,
@@ -250,7 +256,10 @@ export function createStubAdapter(): BeliAdapter {
 		async createReview(input: CreateReviewInput) {
 			findOrThrow(FIXTURE_RESTAURANTS, input.restaurantId, "Restaurant");
 			if (input.ratingId !== undefined && input.ratingId !== null) {
-				findOrThrow(ratings, input.ratingId, "Rating");
+				const rating = findOrThrow(ratings, input.ratingId, "Rating");
+				if (rating.restaurantId !== input.restaurantId) {
+					throw new ValidationError("Review rating must reference the same restaurant", "ratingId");
+				}
 			}
 			const createdAt = now();
 			const review = {

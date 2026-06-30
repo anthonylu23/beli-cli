@@ -63,6 +63,14 @@ describe("createStubAdapter", () => {
 		expect(result.items.length).toBeLessThanOrEqual(2);
 	});
 
+	test("paginate rejects zero, negative, and unsafe limits", async () => {
+		await expect(adapter.getRatings({ limit: 0 })).rejects.toThrow(ValidationError);
+		await expect(adapter.getRatings({ limit: -1 })).rejects.toThrow(ValidationError);
+		await expect(adapter.getRatings({ limit: Number.MAX_SAFE_INTEGER + 1 })).rejects.toThrow(
+			ValidationError,
+		);
+	});
+
 	test("paginate returns nextCursor when more items exist", async () => {
 		const result = await adapter.getRatings({ limit: 1 });
 		expect(result.nextCursor).not.toBeNull();
@@ -361,6 +369,21 @@ describe("createStubAdapter", () => {
 				body: "Missing rating",
 			}),
 		).rejects.toThrow(UpstreamError);
+	});
+
+	test("createReview rejects a rating from a different restaurant", async () => {
+		const mutableAdapter = createStubAdapter();
+		const rating = await mutableAdapter.createRating({
+			restaurantId: entityId<"Restaurant">("rest_001"),
+			score: 8,
+		});
+		await expect(
+			mutableAdapter.createReview({
+				restaurantId: entityId<"Restaurant">("rest_002"),
+				ratingId: rating.id,
+				body: "Mismatch",
+			}),
+		).rejects.toThrow("same restaurant");
 	});
 
 	test("updateReview updates body and image URLs", async () => {

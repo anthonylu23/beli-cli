@@ -2,7 +2,7 @@ import { spyOn } from "bun:test";
 import type { BeliAdapter } from "@adapters/private-mobile/contract.ts";
 import { createStubAdapter } from "@adapters/private-mobile/stub.ts";
 import type { Session, SessionStore } from "@core/session.ts";
-import { timestamp } from "@core/types.ts";
+import { entityId, timestamp } from "@core/types.ts";
 import type { ProgramOptions } from "./index.ts";
 import { createProgram } from "./index.ts";
 
@@ -64,11 +64,11 @@ export const TEST_SESSION: Session = {
 	credentials: {
 		authToken: "test-token",
 		refreshToken: null,
-		userId: "user_001",
+		userId: entityId<"User">("user_001"),
 	},
 	metadata: {
 		profile: "default",
-		userId: "user_001",
+		userId: entityId<"User">("user_001"),
 		username: "testuser",
 		displayName: "Test User",
 		bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),

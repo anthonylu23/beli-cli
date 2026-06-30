@@ -1,4 +1,3 @@
-import { createInterface } from "node:readline";
 import type { BeliAdapter } from "@adapters/private-mobile/contract.ts";
 import { ValidationError } from "@core/errors.ts";
 import type { Session, SessionStore } from "@core/session.ts";
@@ -12,6 +11,7 @@ import { asOutputRecord, flattenReview } from "../presenters.ts";
 import { runCommand } from "../run.ts";
 import { requireSession, validateSession } from "../session.ts";
 import { readStdinJson } from "../stdin.ts";
+import { buildWritePayload, confirmAction as defaultConfirm } from "../write-utils.ts";
 
 type AdapterFactory = (session: Session) => BeliAdapter;
 
@@ -32,7 +32,7 @@ export function registerReviewsCommand(
 	const createAdapter = deps.createAdapter ?? defaultAdapter;
 	const createStore = deps.createSessionStore ?? defaultSessionStore;
 	const readJsonInput = deps.readJsonInput ?? readStdinJson<Record<string, unknown>>;
-	const confirmAction = deps.confirm ?? confirm;
+	const confirmAction = deps.confirm ?? defaultConfirm;
 	const reviews = program.command("reviews").description("Create and manage restaurant reviews");
 
 	reviews
@@ -80,7 +80,7 @@ async function executeCreate(
 	readJsonInput: () => Promise<Record<string, unknown>>,
 	cmdOpts: Record<string, unknown>,
 ): Promise<void> {
-	const input = await buildPayload(ctx, readJsonInput, cmdOpts);
+	const input = await buildWritePayload(ctx, readJsonInput, cmdOpts);
 	const session = await requireSession(store, ctx.profile);
 	const adapter = createAdapter(session);
 	await validateSession(() => adapter.validateSession());
@@ -103,7 +103,7 @@ async function executeUpdate(
 	id: string,
 	cmdOpts: Record<string, unknown>,
 ): Promise<void> {
-	const input = await buildPayload(ctx, readJsonInput, cmdOpts);
+	const input = await buildWritePayload(ctx, readJsonInput, cmdOpts);
 	if (input.body === undefined && input.imageUrls === undefined) {
 		throw new ValidationError("At least one review field must be provided", "input");
 	}
@@ -142,40 +142,6 @@ async function executeDelete(
 	}
 }
 
-async function buildPayload(
-	ctx: RunContext,
-	readJsonInput: () => Promise<Record<string, unknown>>,
-	cmdOpts: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-	const payload = ctx.input === undefined ? {} : await readInputPayload(ctx, readJsonInput);
-	return {
-		...payload,
-		...definedOptions(cmdOpts),
-	};
-}
-
-async function readInputPayload(
-	ctx: RunContext,
-	readJsonInput: () => Promise<Record<string, unknown>>,
-): Promise<Record<string, unknown>> {
-	if (ctx.input !== "-") {
-		throw new ValidationError('Only "--input -" is supported for review write commands.', "input");
-	}
-	const input = await readJsonInput();
-	if (input === null || Array.isArray(input) || typeof input !== "object") {
-		throw new ValidationError("Input JSON must be an object.", "input");
-	}
-	return input;
-}
-
-function definedOptions(options: Record<string, unknown>): Record<string, unknown> {
-	const result: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(options)) {
-		if (value !== undefined) result[key] = value;
-	}
-	return result;
-}
-
 function requireString(value: unknown, field: string): string {
 	if (typeof value !== "string") {
 		throw new ValidationError(`${field} is required`, field);
@@ -211,14 +177,4 @@ function optionalStringArray(field: string, value: unknown): Record<string, read
 		throw new ValidationError(`${field} must be a string array or comma-separated string`, field);
 	}
 	return { [field]: value };
-}
-
-function confirm(question: string): Promise<boolean> {
-	const rl = createInterface({ input: process.stdin, output: process.stderr });
-	return new Promise((resolve) => {
-		rl.question(`${question} [y/N] `, (answer) => {
-			rl.close();
-			resolve(answer.trim().toLowerCase() === "y");
-		});
-	});
 }

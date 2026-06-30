@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { Session } from "@core/session.ts";
-import { timestamp } from "@core/types.ts";
+import { entityId, timestamp } from "@core/types.ts";
 import type { ConfigStore, ProfileConfig } from "./config.ts";
 import type { KeychainStore } from "./keychain.ts";
 import { createSessionStore } from "./session-store.ts";
@@ -10,7 +10,7 @@ const now = timestamp("2025-04-07T10:00:00.000Z");
 const testCredentials = {
 	authToken: "tok_abc",
 	refreshToken: null,
-	userId: "user_123",
+	userId: entityId<"User">("user_123"),
 };
 
 const testMetadata: ProfileConfig = {
@@ -71,7 +71,7 @@ describe("SessionStore", () => {
 		credentials: testCredentials,
 		metadata: {
 			profile: "default",
-			userId: "user_123",
+			userId: entityId<"User">("user_123"),
 			username: "testuser",
 			displayName: "Test User",
 			bootstrappedAt: now,
@@ -162,9 +162,16 @@ describe("SessionStore", () => {
 		expect(config.profiles.has("default")).toBeFalse();
 	});
 
-	it("exists returns true when keychain has data", async () => {
-		keychain.data.set("default", "{}");
+	it("exists returns true only when a complete session is loadable", async () => {
+		keychain.data.set("default", JSON.stringify(testCredentials));
+		config.profiles.set("default", testMetadata);
 		expect(await store.exists("default")).toBeTrue();
+	});
+
+	it("exists returns false for incomplete or invalid credentials", async () => {
+		keychain.data.set("default", "{}");
+		config.profiles.set("default", testMetadata);
+		expect(await store.exists("default")).toBeFalse();
 	});
 
 	it("exists returns false when keychain is empty", async () => {
@@ -177,6 +184,44 @@ describe("SessionStore", () => {
 
 		const session = await store.load("default");
 		expect(session).toBeNull();
+	});
+
+	for (const [label, credentials] of [
+		["missing fields", { authToken: "token" }],
+		["wrong field types", { authToken: 42, refreshToken: null, userId: null }],
+		["empty token", { authToken: " ", refreshToken: null, userId: null }],
+	] as const) {
+		it(`returns null for credentials with ${label}`, async () => {
+			keychain.data.set("default", JSON.stringify(credentials));
+			config.profiles.set("default", testMetadata);
+			expect(await store.load("default")).toBeNull();
+		});
+	}
+
+	it("rejects a session whose profile does not match the save target", async () => {
+		await expect(store.save("other", testSession)).rejects.toThrow("does not match");
+		expect(keychain.data.size).toBe(0);
+		expect(config.profiles.size).toBe(0);
+	});
+
+	it("does not delete config when keychain deletion fails", async () => {
+		await store.save("default", testSession);
+		keychain.delete = async () => {
+			throw new Error("keychain delete failed");
+		};
+
+		await expect(store.delete("default")).rejects.toThrow("keychain delete failed");
+		expect(config.profiles.has("default")).toBeTrue();
+	});
+
+	it("does not delete keychain credentials when config deletion fails", async () => {
+		await store.save("default", testSession);
+		config.deleteProfile = async () => {
+			throw new Error("config delete failed");
+		};
+
+		await expect(store.delete("default")).rejects.toThrow("config delete failed");
+		expect(keychain.data.has("default")).toBeTrue();
 	});
 
 	it("preserves null user ids across save and load", async () => {

@@ -75,6 +75,7 @@ The CLI layer uses **Commander.js** for argument parsing and subcommand registra
 | `src/cli/output.ts` | Formatters: `printTable`, `printPaginatedTable`, `printDetail`, `printJson`, `printError` |
 | `src/cli/run.ts` | `runCommand()` — error→exit-code wrapper for command handlers |
 | `src/cli/stdin.ts` | `readStdinJson()` — stdin JSON ingestion for `--input -` |
+| `src/cli/write-utils.ts` | Shared stdin write-payload merging and confirmation prompts |
 | `src/cli/pagination.ts` | `addPaginationOptions()`, `extractPagination()` — `--cursor`/`--limit` |
 | `src/cli/columns.ts` | Table column definitions per entity type |
 | `src/cli/presenters.ts` | Entity → flat record flatteners + `mapPaginated()` |
@@ -157,7 +158,7 @@ Mutations copy fixture lists, ratings, and reviews into adapter-local mutable st
 
 The live adapter is opt-in with `BELI_ADAPTER=live`; the stub remains the default. `BELI_API_BASE_URL` is required until sanitized endpoint notes define a production host. The first MVP implementation supports only session validation, profile lookup, restaurant search, list listing/get/create/delete, and list entry add/remove. Other methods throw `UnsupportedFeatureError` so unsupported live surfaces fail explicitly.
 
-The adapter sends bearer tokens in the `Authorization` header and maps `401`/`403` to auth-required behavior, `404` to upstream not found, other non-2xx statuses to upstream failure, and malformed JSON or missing required response fields to schema mismatch errors. Error messages must not include tokens or raw response bodies.
+The adapter requires HTTPS, except for HTTP loopback URLs used in local development, and rejects URLs with embedded credentials. Requests have a bounded timeout. Transport failures are wrapped as upstream errors with their original cause. It sends bearer tokens in the `Authorization` header and maps `401`/`403` to auth-required behavior, `404` to upstream not found, other non-2xx statuses to upstream failure, and malformed JSON or missing required response fields to schema mismatch errors. Error messages must not include tokens or raw response bodies.
 
 Sanitized mapper fixtures live under `docs/fixtures/private-mobile/`. Captured fixtures must remove secrets, stable personal identifiers, precise coordinates, and personal content before being checked in. Mappers accept the documented sanitized shape and common snake_case/camelCase aliases, but fail closed when required normalized fields are missing.
 
@@ -192,11 +193,13 @@ Ratings derive sentiment from score in the stub adapter: `>= 7` positive, `>= 4`
 - Add sanitized endpoint notes for the real private mobile host and paths.
 - Verify the live MVP list add/remove smoke flow against a dedicated personal test account.
 - Expand live adapter method coverage after each new surface has sanitized fixtures and mapper tests.
+- Consider cross-process locking if concurrent writers to the same profile become a supported workflow.
 
 ## Runtime Boundaries
 
 - Core logic uses standard web APIs only (no Bun-specific imports).
-- Bun-specific usage is limited to packaging, dev tooling, and the CLI entrypoint shebang.
+- Bun-specific runtime usage is isolated to infrastructure and entrypoints (`Bun.file`, `Bun.env`,
+  `Bun.spawn`, packaging/tooling, and the CLI shebang). Core remains runtime-agnostic.
 - No MCP server in v1.
 
 ## Tooling

@@ -82,6 +82,22 @@ describe("ConfigStore", () => {
 		await expect(store.load()).rejects.toThrow(ValidationError);
 	});
 
+	for (const [label, profile] of [
+		["missing fields", { userId: null }],
+		["wrong field types", { ...testProfile, username: 42 }],
+		["invalid timestamps", { ...testProfile, bootstrappedAt: "yesterday" }],
+		["empty user id", { ...testProfile, userId: "" }],
+	] as const) {
+		it(`throws for well-formed config JSON with ${label}`, async () => {
+			await Bun.write(join(dir, "config.json"), JSON.stringify({ profiles: { default: profile } }));
+			await expect(store.load()).rejects.toThrow(ValidationError);
+		});
+	}
+
+	it("does not treat inherited profile names as stored profiles", async () => {
+		expect(await store.deleteProfile("toString")).toBeFalse();
+	});
+
 	it("does not overwrite malformed config files when setting a profile", async () => {
 		const filePath = join(dir, "config.json");
 		await Bun.write(filePath, "not json");

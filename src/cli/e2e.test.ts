@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { createStubAdapter } from "@adapters/private-mobile/stub.ts";
+import { TEST_SESSION, createMemorySessionStore, runProgram } from "./test-helpers.ts";
 
 interface CliResult {
 	readonly exitCode: number;
@@ -128,5 +130,39 @@ describe("CLI end-to-end", () => {
 		const parsed = JSON.parse(result.stdout);
 		expect(parsed.inputSource).toBe("-");
 		expect(parsed.resource).toBe("foo");
+	});
+
+	test("composes authenticated writes with subsequent reads", async () => {
+		const adapter = createStubAdapter();
+		const store = createMemorySessionStore(TEST_SESSION);
+		const created = await runProgram(["--json", "lists", "create", "--name", "Composed List"], {
+			store,
+			adapter: () => adapter,
+		});
+		expect(created.exitCode).toBe(0);
+		const id = JSON.parse(created.stdout).id as string;
+
+		const read = await runProgram(["--json", "lists", "get", id], {
+			store,
+			adapter: () => adapter,
+		});
+		expect(read.exitCode).toBe(0);
+		expect(JSON.parse(read.stdout).name).toBe("Composed List");
+	});
+
+	test("routes stdin write payloads through the authenticated command stack", async () => {
+		const result = await runProgram(["--json", "--input", "-", "ratings", "create"], {
+			store: createMemorySessionStore(TEST_SESSION),
+			programOptions: {
+				ratings: {
+					readJsonInput: async () => ({ restaurantId: "rest_001", score: 8.25 }),
+				},
+			},
+		});
+		expect(result.exitCode).toBe(0);
+		expect(JSON.parse(result.stdout)).toMatchObject({
+			restaurantId: "rest_001",
+			score: 8.25,
+		});
 	});
 });

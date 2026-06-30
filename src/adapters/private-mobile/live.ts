@@ -18,6 +18,7 @@ import { mapListPage, mapListResponse, mapRestaurantPage, mapUserResponse } from
 export interface LiveAdapterOptions {
 	readonly baseUrl: string;
 	readonly fetchFn?: FetchFn | undefined;
+	readonly timeoutMs?: number | undefined;
 }
 
 export type FetchFn = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -35,21 +36,34 @@ const JSON_HEADERS = {
 	Accept: "application/json",
 	"Content-Type": "application/json",
 };
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 export function createLiveAdapter(session: Session, options: LiveAdapterOptions): BeliAdapter {
 	const baseUrl = normalizeBaseUrl(options.baseUrl);
 	const fetchFn: FetchFn = options.fetchFn ?? fetch;
+	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+		throw new ValidationError("Live adapter timeout must be a positive safe integer", "timeoutMs");
+	}
 
 	async function requestJson(path: string, options: RequestOptions = {}): Promise<unknown> {
 		const url = buildUrl(baseUrl, path, options.query);
-		const response = await fetchFn(url, {
-			method: options.method ?? "GET",
-			headers: {
-				...JSON_HEADERS,
-				Authorization: `Bearer ${session.credentials.authToken}`,
-			},
-			...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-		});
+		let response: Response;
+		try {
+			response = await fetchFn(url, {
+				method: options.method ?? "GET",
+				headers: {
+					...JSON_HEADERS,
+					Authorization: `Bearer ${session.credentials.authToken}`,
+				},
+				signal: AbortSignal.timeout(timeoutMs),
+				...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+			});
+		} catch (error) {
+			throw new UpstreamError("Beli API request failed before receiving a response", undefined, {
+				cause: error,
+			});
+		}
 
 		return parseResponse(response, options);
 	}
@@ -243,8 +257,23 @@ function normalizeBaseUrl(baseUrl: string): string {
 	}
 	try {
 		const url = new URL(trimmed);
+		if (url.username || url.password) {
+			throw new ValidationError(
+				"BELI_API_BASE_URL must not contain embedded credentials",
+				"baseUrl",
+			);
+		}
+		const isLocalhost =
+			url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
+		if (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhost)) {
+			throw new ValidationError(
+				"BELI_API_BASE_URL must use HTTPS (HTTP is allowed only for localhost)",
+				"baseUrl",
+			);
+		}
 		return url.toString().replace(/\/$/, "");
 	} catch (error) {
+		if (error instanceof ValidationError) throw error;
 		throw new ValidationError("BELI_API_BASE_URL must be a valid URL", "baseUrl", {
 			cause: error,
 		});

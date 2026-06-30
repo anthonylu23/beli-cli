@@ -1,4 +1,3 @@
-import { createInterface } from "node:readline";
 import type { BeliAdapter } from "@adapters/private-mobile/contract.ts";
 import { ValidationError } from "@core/errors.ts";
 import type { Session, SessionStore } from "@core/session.ts";
@@ -13,6 +12,7 @@ import { asOutputRecord, flattenList, mapPaginated } from "../presenters.ts";
 import { runCommand } from "../run.ts";
 import { requireSession, validateSession } from "../session.ts";
 import { readStdinJson } from "../stdin.ts";
+import { buildWritePayload, confirmAction as defaultConfirm } from "../write-utils.ts";
 
 type AdapterFactory = (session: Session) => BeliAdapter;
 
@@ -33,7 +33,7 @@ export function registerListsCommand(
 	const createAdapter = deps.createAdapter ?? defaultAdapter;
 	const createStore = deps.createSessionStore ?? defaultSessionStore;
 	const readJsonInput = deps.readJsonInput ?? readStdinJson<Record<string, unknown>>;
-	const confirmAction = deps.confirm ?? confirm;
+	const confirmAction = deps.confirm ?? defaultConfirm;
 	const lists = program.command("lists").description("View your restaurant lists");
 
 	addPaginationOptions(lists.command("ls").description("List all your lists")).action(
@@ -151,7 +151,7 @@ async function executeCreate(
 	readJsonInput: () => Promise<Record<string, unknown>>,
 	cmdOpts: Record<string, unknown>,
 ): Promise<void> {
-	const input = await buildListPayload(ctx, readJsonInput, cmdOpts);
+	const input = await buildWritePayload(ctx, readJsonInput, cmdOpts);
 	const session = await requireSession(store, ctx.profile);
 	const adapter = createAdapter(session);
 	await validateSession(() => adapter.validateSession());
@@ -171,7 +171,7 @@ async function executeUpdate(
 	id: string,
 	cmdOpts: Record<string, unknown>,
 ): Promise<void> {
-	const input = await buildListPayload(ctx, readJsonInput, cmdOpts);
+	const input = await buildWritePayload(ctx, readJsonInput, cmdOpts);
 	if (
 		input.name === undefined &&
 		input.description === undefined &&
@@ -223,7 +223,7 @@ async function executeAddEntry(
 	listId: string,
 	cmdOpts: Record<string, unknown>,
 ): Promise<void> {
-	const input = await buildListPayload(ctx, readJsonInput, cmdOpts);
+	const input = await buildWritePayload(ctx, readJsonInput, cmdOpts);
 	const session = await requireSession(store, ctx.profile);
 	const adapter = createAdapter(session);
 	await validateSession(() => adapter.validateSession());
@@ -252,40 +252,6 @@ async function executeRemoveEntry(
 		entityId<"Restaurant">(restaurant),
 	);
 	printDetail(flattenList(list), ctx, asOutputRecord(list));
-}
-
-async function buildListPayload(
-	ctx: RunContext,
-	readJsonInput: () => Promise<Record<string, unknown>>,
-	cmdOpts: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-	const payload = ctx.input === undefined ? {} : await readInputPayload(ctx, readJsonInput);
-	return {
-		...payload,
-		...definedOptions(cmdOpts),
-	};
-}
-
-async function readInputPayload(
-	ctx: RunContext,
-	readJsonInput: () => Promise<Record<string, unknown>>,
-): Promise<Record<string, unknown>> {
-	if (ctx.input !== "-") {
-		throw new ValidationError('Only "--input -" is supported for list write commands.', "input");
-	}
-	const input = await readJsonInput();
-	if (input === null || Array.isArray(input) || typeof input !== "object") {
-		throw new ValidationError("Input JSON must be an object.", "input");
-	}
-	return input;
-}
-
-function definedOptions(options: Record<string, unknown>): Record<string, unknown> {
-	const result: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(options)) {
-		if (value !== undefined) result[key] = value;
-	}
-	return result;
 }
 
 function requireString(value: unknown, field: string): string {
@@ -318,14 +284,4 @@ function optionalVisibility(value: unknown): { visibility?: "public" | "private"
 		throw new ValidationError("visibility must be public or private", "visibility");
 	}
 	return { visibility: value };
-}
-
-function confirm(question: string): Promise<boolean> {
-	const rl = createInterface({ input: process.stdin, output: process.stderr });
-	return new Promise((resolve) => {
-		rl.question(`${question} [y/N] `, (answer) => {
-			rl.close();
-			resolve(answer.trim().toLowerCase() === "y");
-		});
-	});
 }

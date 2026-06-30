@@ -79,6 +79,13 @@ describe("beli restaurants", () => {
 		expect(result.stderr).toContain("--lng");
 	});
 
+	test("search rejects out-of-range coordinates before auth", async () => {
+		const latitude = await runProgram(["restaurants", "search", "pizza", "--lat", "90.1"]);
+		expect(latitude.exitCode).toBe(2);
+		const longitude = await runProgram(["restaurants", "search", "pizza", "--lng", "-180.1"]);
+		expect(longitude.exitCode).toBe(2);
+	});
+
 	test("creates the adapter with the loaded session", async () => {
 		const store = createMemorySessionStore(TEST_SESSION);
 		let receivedSession: Session | null = null;

@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import type { BeliAdapter } from "@adapters/private-mobile/contract.ts";
 import type { BootstrapInput, Session, SessionStore } from "@core/session.ts";
-import { timestamp } from "@core/types.ts";
+import { entityId, timestamp } from "@core/types.ts";
 import { createProgram } from "./index.ts";
 
 /** Capture writes to a writable stream. */
@@ -204,27 +204,62 @@ describe("beli auth", () => {
 		expect(result.stderr).toBe("");
 		expect(JSON.parse(result.stdout)).toEqual({
 			profile: "default",
-			userId: "user_123",
+			userId: entityId<"User">("user_123"),
 			status: "saved",
 			validated: "stub",
 			message: "Token saved. Live validation will be available once API endpoints are configured.",
 		});
 
 		const session = await result.store.load("default");
-		expect(session?.credentials.userId).toBe("user_123");
+		expect(session?.credentials.userId).toBe(entityId<"User">("user_123"));
 		expect(session?.metadata.username).toBe("tester");
 	});
+
+	test("auth bootstrap preserves an existing session when validation fails", async () => {
+		const existing = createMemorySessionStore({
+			credentials: {
+				authToken: "old-token",
+				refreshToken: null,
+				userId: null,
+			},
+			metadata: {
+				profile: "default",
+				userId: null,
+				username: null,
+				displayName: null,
+				bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),
+				lastValidatedAt: timestamp("2025-04-07T10:00:00.000Z"),
+			},
+		});
+		const result = await runProgram(["--yes", "auth", "bootstrap"], {
+			store: existing,
+			bootstrapInput: { authToken: "bad-token" },
+			validateToken: async () => ({ valid: false }),
+		});
+
+		expect(result.exitCode).toBe(3);
+		expect((await existing.load("default"))?.credentials.authToken).toBe("old-token");
+	});
+
+	for (const input of [null, [], 42, { authToken: " " }] as unknown[]) {
+		test(`auth bootstrap rejects invalid input ${JSON.stringify(input)}`, async () => {
+			const result = await runProgram(["auth", "bootstrap"], {
+				bootstrapInput: input as BootstrapInput,
+			});
+			expect(result.exitCode).toBe(2);
+		});
+	}
 
 	test("auth bootstrap aborts replacement when confirmation is declined", async () => {
 		const existingSession: Session = {
 			credentials: {
 				authToken: "old-token",
 				refreshToken: null,
-				userId: "user_001",
+				userId: entityId<"User">("user_001"),
 			},
 			metadata: {
 				profile: "default",
-				userId: "user_001",
+				userId: entityId<"User">("user_001"),
 				username: "existing",
 				displayName: "Existing User",
 				bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),
@@ -281,11 +316,11 @@ describe("beli auth", () => {
 			credentials: {
 				authToken: "token-123",
 				refreshToken: null,
-				userId: "user_123",
+				userId: entityId<"User">("user_123"),
 			},
 			metadata: {
 				profile: "default",
-				userId: "user_123",
+				userId: entityId<"User">("user_123"),
 				username: "tester",
 				displayName: "Test User",
 				bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),
@@ -308,16 +343,35 @@ describe("beli auth", () => {
 		});
 	});
 
+	test("auth status --json renders missing values as null", async () => {
+		const store = createMemorySessionStore({
+			credentials: { authToken: "token-123", refreshToken: null, userId: null },
+			metadata: {
+				profile: "default",
+				userId: null,
+				username: null,
+				displayName: null,
+				bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),
+				lastValidatedAt: timestamp("2025-04-07T10:00:00.000Z"),
+			},
+		});
+		const result = await runProgram(["--json", "auth", "status"], { store });
+		const output = JSON.parse(result.stdout);
+		expect(output.userId).toBeNull();
+		expect(output.username).toBeNull();
+		expect(output.displayName).toBeNull();
+	});
+
 	test("auth status exits 3 when session validation fails", async () => {
 		const store = createMemorySessionStore({
 			credentials: {
 				authToken: "token-123",
 				refreshToken: null,
-				userId: "user_123",
+				userId: entityId<"User">("user_123"),
 			},
 			metadata: {
 				profile: "default",
-				userId: "user_123",
+				userId: entityId<"User">("user_123"),
 				username: "tester",
 				displayName: "Test User",
 				bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),
@@ -351,11 +405,11 @@ describe("beli auth", () => {
 			credentials: {
 				authToken: "token-123",
 				refreshToken: null,
-				userId: "user_123",
+				userId: entityId<"User">("user_123"),
 			},
 			metadata: {
 				profile: "default",
-				userId: "user_123",
+				userId: entityId<"User">("user_123"),
 				username: "tester",
 				displayName: "Test User",
 				bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),
@@ -376,11 +430,11 @@ describe("beli auth", () => {
 			credentials: {
 				authToken: "token-123",
 				refreshToken: null,
-				userId: "user_123",
+				userId: entityId<"User">("user_123"),
 			},
 			metadata: {
 				profile: "default",
-				userId: "user_123",
+				userId: entityId<"User">("user_123"),
 				username: "tester",
 				displayName: "Test User",
 				bootstrappedAt: timestamp("2025-04-07T10:00:00.000Z"),
