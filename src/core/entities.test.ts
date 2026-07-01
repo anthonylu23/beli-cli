@@ -44,4 +44,23 @@ describe("entity construction", () => {
 		const ts = timestamp("2025-01-15T12:00:00.000Z");
 		expect(ts).toBe(timestamp("2025-01-15T12:00:00.000Z"));
 	});
+
+	it("rejects invalid IDs and timestamps", () => {
+		for (const id of ["", " ", "two words", "\u0000"]) {
+			expect(() => entityId(id)).toThrow(TypeError);
+		}
+		for (const value of [
+			"",
+			"yesterday",
+			"2025-01-15",
+			"2025-13-99T00:00:00Z",
+			"2025-02-29T00:00:00Z",
+			"2025-01-01T24:00:00Z",
+			"2025-01-01T00:60:00Z",
+			"2025-01-01T00:00:60Z",
+		]) {
+			expect(() => timestamp(value)).toThrow(TypeError);
+		}
+		expect(timestamp("2024-02-29T23:59:59.123456Z")).toBe(timestamp("2024-02-29T23:59:59.123456Z"));
+	});
 });

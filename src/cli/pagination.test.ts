@@ -53,6 +53,9 @@ describe("--limit parser", () => {
 
 		cmd.parse(["node", "test", "--limit", "1.5"]);
 		expect(() => extractPagination(cmd.opts())).toThrow(ValidationError);
+
+		cmd.parse(["node", "test", "--limit", "9007199254740992"]);
+		expect(() => extractPagination(cmd.opts())).toThrow(ValidationError);
 	});
 
 	test("accepts positive integer", () => {

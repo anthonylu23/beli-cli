@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { AuthRequiredError, UnsupportedFeatureError, UpstreamError } from "@core/errors.ts";
+import {
+	AuthRequiredError,
+	UnsupportedFeatureError,
+	UpstreamError,
+	ValidationError,
+} from "@core/errors.ts";
 import type { Session } from "@core/session.ts";
 import { entityId, timestamp } from "@core/types.ts";
 import { createLiveAdapter } from "./live.ts";
@@ -10,11 +15,11 @@ const TEST_SESSION: Session = {
 	credentials: {
 		authToken: "secret-live-token",
 		refreshToken: null,
-		userId: "user_sanitized_001",
+		userId: entityId<"User">("user_sanitized_001"),
 	},
 	metadata: {
 		profile: "default",
-		userId: "user_sanitized_001",
+		userId: entityId<"User">("user_sanitized_001"),
 		username: "sanitized_user",
 		displayName: "Sanitized User",
 		bootstrappedAt: timestamp("2026-01-01T00:00:00.000Z"),
@@ -137,6 +142,79 @@ describe("createLiveAdapter", () => {
 
 		await expect(adapter.getMe()).rejects.toThrow(UpstreamError);
 		await expect(adapter.getFeed()).rejects.toThrow(UnsupportedFeatureError);
+	});
+
+	test("wraps rejected fetches and preserves their cause", async () => {
+		const cause = new TypeError("connection refused");
+		const adapter = createLiveAdapter(TEST_SESSION, {
+			baseUrl: "https://fixture.local",
+			fetchFn: async () => {
+				throw cause;
+			},
+		});
+
+		try {
+			await adapter.getMe();
+			throw new Error("expected request to fail");
+		} catch (error) {
+			expect(error).toBeInstanceOf(UpstreamError);
+			expect((error as UpstreamError).cause).toBe(cause);
+		}
+	});
+
+	test("aborts requests after the configured timeout and wraps the abort", async () => {
+		const adapter = createLiveAdapter(TEST_SESSION, {
+			baseUrl: "https://fixture.local",
+			timeoutMs: 5,
+			fetchFn: async (_input, init) =>
+				new Promise<Response>((_resolve, reject) => {
+					init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), {
+						once: true,
+					});
+				}),
+		});
+
+		try {
+			await adapter.getMe();
+			throw new Error("expected request to time out");
+		} catch (error) {
+			expect(error).toBeInstanceOf(UpstreamError);
+			expect((error as UpstreamError).cause).toBeInstanceOf(DOMException);
+		}
+	});
+
+	test("rejects invalid JSON and 5xx responses", async () => {
+		const invalidJson = createLiveAdapter(TEST_SESSION, {
+			baseUrl: "https://fixture.local",
+			fetchFn: async () =>
+				new Response("{", { status: 200, headers: { "content-type": "application/json" } }),
+		});
+		await expect(invalidJson.getMe()).rejects.toThrow("invalid JSON");
+
+		const serverError = createLiveAdapter(TEST_SESSION, {
+			baseUrl: "https://fixture.local",
+			fetchFn: async () => new Response("secret-live-token", { status: 503 }),
+		});
+		try {
+			await serverError.getMe();
+		} catch (error) {
+			expect(error).toBeInstanceOf(UpstreamError);
+			expect((error as UpstreamError).statusCode).toBe(503);
+			expect(String(error)).not.toContain("secret-live-token");
+		}
+	});
+
+	test("requires HTTPS except for localhost and rejects embedded credentials", () => {
+		expect(() => createLiveAdapter(TEST_SESSION, { baseUrl: "http://api.example.com" })).toThrow(
+			ValidationError,
+		);
+		expect(() =>
+			createLiveAdapter(TEST_SESSION, { baseUrl: "https://user:pass@api.example.com" }),
+		).toThrow("embedded credentials");
+		expect(() =>
+			createLiveAdapter(TEST_SESSION, { baseUrl: "http://localhost:3000" }),
+		).not.toThrow();
+		expect(() => createLiveAdapter(TEST_SESSION, { baseUrl: "http://[::1]:3000" })).not.toThrow();
 	});
 });
 

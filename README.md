@@ -75,7 +75,11 @@ BELI_ADAPTER=live
 BELI_API_BASE_URL=https://captured-api-host.example
 ```
 
-`BELI_API_BASE_URL` is required until sanitized production endpoint notes are checked in. Live mode currently implements only the MVP surfaces: session validation, `me`, restaurant search, list listing/get/create/delete, and list entry add/remove. Other live methods fail with the existing unsupported-feature exit path.
+`BELI_API_BASE_URL` is required until sanitized production endpoint notes are checked in. It must use
+HTTPS and must not contain credentials; HTTP loopback URLs are accepted for local development.
+Live requests time out instead of waiting indefinitely. Live mode currently implements only the MVP
+surfaces: session validation, `me`, restaurant search, list listing/get/create/delete, and list entry
+add/remove. Other live methods fail with the existing unsupported-feature exit path.
 
 The live smoke flow is explicitly gated:
 
@@ -184,10 +188,11 @@ Example JSON payloads:
 | `--yes` | Skip confirmation prompts |
 | `--profile <name>` | Config profile to use (default: `default`) |
 | `--experimental` | Enable experimental features |
-| `--input <source>` | Carry an input source through command context (use `-` for stdin) |
+| `--input <source>` | Read write-command JSON from stdin; only `-` is supported |
 
 ## Next Steps
 
 - Add sanitized captured endpoint notes for the real Beli private mobile host and path mapping
 - Expand the live adapter beyond the MVP list flow after mapper fixtures are verified
 - Run env-gated live smoke against a dedicated personal test account
+- Add cross-process config locking if concurrent profile writes become a supported workflow

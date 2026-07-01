@@ -2,9 +2,9 @@ import type { Interface as ReadlineInterface } from "node:readline";
 import { createInterface } from "node:readline";
 import type { BeliAdapter } from "@adapters/private-mobile/contract.ts";
 import { validateToken } from "@adapters/private-mobile/validate.ts";
-import { AuthRequiredError } from "@core/errors.ts";
+import { AuthRequiredError, ValidationError } from "@core/errors.ts";
 import type { BootstrapInput, Session, SessionStore } from "@core/session.ts";
-import { timestamp } from "@core/types.ts";
+import { entityId, timestamp } from "@core/types.ts";
 import { createConfigStore } from "@infra/config.ts";
 import { createKeychainStore } from "@infra/keychain.ts";
 import { createSessionStore } from "@infra/session-store.ts";
@@ -84,6 +84,7 @@ async function executeBootstrap(
 	deps: ExecuteBootstrapDeps,
 ): Promise<void> {
 	const input = await deps.readBootstrapInput(ctx);
+	assertBootstrapInput(input);
 
 	// Check for existing session
 	if (await store.exists(ctx.profile)) {
@@ -99,18 +100,30 @@ async function executeBootstrap(
 	}
 
 	// Normalize token: strip "Bearer " prefix if present
-	const authToken = input.authToken.replace(/^Bearer\s+/i, "");
+	const authToken = input.authToken
+		.trim()
+		.replace(/^Bearer(?:\s+|$)/i, "")
+		.trim();
+	if (!authToken) {
+		throw new ValidationError("Bootstrap input requires a non-empty authToken.", "authToken");
+	}
+	const refreshToken = input.refreshToken?.trim() ?? null;
+	const suppliedUserId = input.userId?.trim();
 
 	// Validate (stubbed for now)
-	const result = await deps.validateToken(authToken, input.userId);
-	const userId = result.user?.id ?? input.userId ?? null;
+	const result = await deps.validateToken(authToken, suppliedUserId);
+	if (!result.valid) {
+		throw new AuthRequiredError("The supplied Beli token could not be validated.");
+	}
+	const rawUserId = result.user?.id ?? input.userId ?? null;
+	const userId = rawUserId === null ? null : entityId<"User">(rawUserId);
 
 	const now = timestamp(new Date().toISOString());
 
 	await store.save(ctx.profile, {
 		credentials: {
 			authToken,
-			refreshToken: input.refreshToken ?? null,
+			refreshToken,
 			userId,
 		},
 		metadata: {
@@ -126,13 +139,31 @@ async function executeBootstrap(
 	printDetail(
 		{
 			profile: ctx.profile,
-			userId: userId ?? "—",
+			userId,
 			status: "saved",
-			validated: result.valid ? "stub" : false,
+			validated: "stub",
 			message: "Token saved. Live validation will be available once API endpoints are configured.",
 		},
 		ctx,
 	);
+}
+
+function assertBootstrapInput(value: unknown): asserts value is BootstrapInput {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		throw new ValidationError("Bootstrap input must be a JSON object.", "input");
+	}
+	const input = value as Record<string, unknown>;
+	if (typeof input.authToken !== "string" || input.authToken.trim().length === 0) {
+		throw new ValidationError("Bootstrap input requires a non-empty authToken.", "authToken");
+	}
+	for (const field of ["refreshToken", "userId"] as const) {
+		if (
+			input[field] !== undefined &&
+			(typeof input[field] !== "string" || input[field].trim().length === 0)
+		) {
+			throw new ValidationError(`${field} must be a non-empty string when provided.`, field);
+		}
+	}
 }
 
 async function gatherBootstrapInput(ctx: RunContext): Promise<BootstrapInput> {
@@ -214,9 +245,9 @@ async function executeStatus(
 	printDetail(
 		{
 			profile: session.metadata.profile,
-			userId: session.metadata.userId ?? "—",
-			username: session.metadata.username ?? "—",
-			displayName: session.metadata.displayName ?? "—",
+			userId: session.metadata.userId,
+			username: session.metadata.username,
+			displayName: session.metadata.displayName,
 			bootstrappedAt: session.metadata.bootstrappedAt,
 			lastValidatedAt: session.metadata.lastValidatedAt,
 			authenticated,

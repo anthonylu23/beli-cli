@@ -29,7 +29,7 @@ export function mapListPage(value: unknown): PaginatedResult<List> {
 function mapUser(value: unknown): User {
 	const record = requireRecord(value, "user");
 	return {
-		id: entityId<"User">(readString(record, ["id", "user_id"], "user.id")),
+		id: readId<"User">(record, ["id", "user_id"], "user.id"),
 		username: readString(record, ["username"], "user.username"),
 		displayName: readString(record, ["displayName", "display_name", "name"], "user.displayName"),
 		avatarUrl: readNullableString(record, ["avatarUrl", "avatar_url"], "user.avatarUrl"),
@@ -42,11 +42,17 @@ function mapUser(value: unknown): User {
 function mapRestaurant(value: unknown): Restaurant {
 	const record = requireRecord(value, "restaurant");
 	return {
-		id: entityId<"Restaurant">(readString(record, ["id", "restaurant_id"], "restaurant.id")),
+		id: readId<"Restaurant">(record, ["id", "restaurant_id"], "restaurant.id"),
 		name: readString(record, ["name"], "restaurant.name"),
 		location: mapLocation(record.location),
 		imageUrl: readNullableString(record, ["imageUrl", "image_url"], "restaurant.imageUrl"),
-		priceLevel: readNullableNumber(record, ["priceLevel", "price_level"], "restaurant.priceLevel"),
+		priceLevel: readNullableRange(
+			record,
+			["priceLevel", "price_level"],
+			"restaurant.priceLevel",
+			1,
+			4,
+		),
 		cuisines: readStringArray(record, ["cuisines"], "restaurant.cuisines"),
 		tags: readStringArray(record, ["tags"], "restaurant.tags"),
 	};
@@ -56,13 +62,14 @@ function mapList(value: unknown): List {
 	const record = requireRecord(value, "list");
 	const entries = readArray(record, ["entries"], "list.entries").map(mapListEntry);
 	return {
-		id: entityId<"List">(readString(record, ["id", "list_id"], "list.id")),
-		userId: entityId<"User">(readString(record, ["userId", "user_id"], "list.userId")),
+		id: readId<"List">(record, ["id", "list_id"], "list.id"),
+		userId: readId<"User">(record, ["userId", "user_id"], "list.userId"),
 		name: readString(record, ["name"], "list.name"),
 		description: readNullableString(record, ["description"], "list.description"),
 		visibility: readVisibility(record, ["visibility"], "list.visibility"),
 		entries,
-		entryCount: readOptionalNumber(record, ["entryCount", "entry_count"]) ?? entries.length,
+		entryCount:
+			readOptionalNonNegativeInteger(record, ["entryCount", "entry_count"]) ?? entries.length,
 		createdAt: readTimestamp(record, ["createdAt", "created_at"], "list.createdAt"),
 		updatedAt: readTimestamp(record, ["updatedAt", "updated_at"], "list.updatedAt"),
 	};
@@ -71,8 +78,10 @@ function mapList(value: unknown): List {
 function mapListEntry(value: unknown): ListEntry {
 	const record = requireRecord(value, "list.entries[]");
 	return {
-		restaurantId: entityId<"Restaurant">(
-			readString(record, ["restaurantId", "restaurant_id"], "list.entries[].restaurantId"),
+		restaurantId: readId<"Restaurant">(
+			record,
+			["restaurantId", "restaurant_id"],
+			"list.entries[].restaurantId",
 		),
 		addedAt: readTimestamp(record, ["addedAt", "added_at"], "list.entries[].addedAt"),
 		notes: readNullableString(record, ["notes"], "list.entries[].notes"),
@@ -83,8 +92,8 @@ function mapLocation(value: unknown): Restaurant["location"] {
 	if (value === null || value === undefined) return null;
 	const record = requireRecord(value, "restaurant.location");
 	return {
-		latitude: readNumber(record, ["latitude", "lat"], "restaurant.location.latitude"),
-		longitude: readNumber(record, ["longitude", "lng"], "restaurant.location.longitude"),
+		latitude: readRange(record, ["latitude", "lat"], "restaurant.location.latitude", -90, 90),
+		longitude: readRange(record, ["longitude", "lng"], "restaurant.location.longitude", -180, 180),
 		address: readNullableString(record, ["address"], "restaurant.location.address"),
 		city: readNullableString(record, ["city"], "restaurant.location.city"),
 		state: readNullableString(record, ["state"], "restaurant.location.state"),
@@ -101,15 +110,27 @@ function readOptionalStats(value: unknown): UserStats | null {
 	if (value === null || value === undefined) return null;
 	const record = requireRecord(value, "user.stats");
 	return {
-		totalRatings: readNumber(record, ["totalRatings", "total_ratings"], "user.stats.totalRatings"),
-		totalReviews: readNumber(record, ["totalReviews", "total_reviews"], "user.stats.totalReviews"),
-		totalLists: readNumber(record, ["totalLists", "total_lists"], "user.stats.totalLists"),
-		followerCount: readNumber(
+		totalRatings: readNonNegativeInteger(
+			record,
+			["totalRatings", "total_ratings"],
+			"user.stats.totalRatings",
+		),
+		totalReviews: readNonNegativeInteger(
+			record,
+			["totalReviews", "total_reviews"],
+			"user.stats.totalReviews",
+		),
+		totalLists: readNonNegativeInteger(
+			record,
+			["totalLists", "total_lists"],
+			"user.stats.totalLists",
+		),
+		followerCount: readNonNegativeInteger(
 			record,
 			["followerCount", "follower_count"],
 			"user.stats.followerCount",
 		),
-		followingCount: readNumber(
+		followingCount: readNonNegativeInteger(
 			record,
 			["followingCount", "following_count"],
 			"user.stats.followingCount",
@@ -197,29 +218,51 @@ function readNumber(
 	return value;
 }
 
-function readOptionalNumber(
+function readNonNegativeInteger(
+	record: Record<string, unknown>,
+	keys: readonly string[],
+	label: string,
+): number {
+	const value = readNumber(record, keys, label);
+	if (!Number.isSafeInteger(value) || value < 0) {
+		throw schemaError(`Expected ${label} to be a non-negative safe integer`);
+	}
+	return value;
+}
+
+function readOptionalNonNegativeInteger(
 	record: Record<string, unknown>,
 	keys: readonly string[],
 ): number | undefined {
 	const value = readFirst(record, keys);
 	if (value === undefined) return undefined;
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		throw schemaError(`Expected ${keys[0]} to be a finite number`);
+	return readNonNegativeInteger(record, keys, keys[0] ?? "value");
+}
+
+function readRange(
+	record: Record<string, unknown>,
+	keys: readonly string[],
+	label: string,
+	min: number,
+	max: number,
+): number {
+	const value = readNumber(record, keys, label);
+	if (value < min || value > max) {
+		throw schemaError(`Expected ${label} to be between ${min} and ${max}`);
 	}
 	return value;
 }
 
-function readNullableNumber(
+function readNullableRange(
 	record: Record<string, unknown>,
 	keys: readonly string[],
 	label: string,
+	min: number,
+	max: number,
 ): number | null {
 	const value = readFirst(record, keys);
 	if (value === undefined || value === null) return null;
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		throw schemaError(`Expected ${label} to be a finite number or null`);
-	}
-	return value;
+	return readRange(record, keys, label, min, max);
 }
 
 function readVisibility(
@@ -239,7 +282,11 @@ function readTimestamp(
 	keys: readonly string[],
 	label: string,
 ): Timestamp {
-	return timestamp(readString(record, keys, label));
+	try {
+		return timestamp(readString(record, keys, label));
+	} catch {
+		throw schemaError(`Expected ${label} to be a valid ISO 8601 UTC timestamp`);
+	}
 }
 
 function readNullableTimestamp(
@@ -248,7 +295,24 @@ function readNullableTimestamp(
 	label: string,
 ): Timestamp | null {
 	const value = readNullableString(record, keys, label);
-	return value === null ? null : timestamp(value);
+	if (value === null) return null;
+	try {
+		return timestamp(value);
+	} catch {
+		throw schemaError(`Expected ${label} to be a valid ISO 8601 UTC timestamp or null`);
+	}
+}
+
+function readId<T extends string>(
+	record: Record<string, unknown>,
+	keys: readonly string[],
+	label: string,
+): EntityId<T> {
+	try {
+		return entityId<T>(readString(record, keys, label));
+	} catch {
+		throw schemaError(`Expected ${label} to be a valid non-empty entity ID`);
+	}
 }
 
 function readFirst(record: Record<string, unknown>, keys: readonly string[]): unknown {

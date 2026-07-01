@@ -1,6 +1,8 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ValidationError } from "@core/errors.ts";
+import { entityId, timestamp } from "@core/types.ts";
 
 /** Per-profile config stored on disk (no secrets). */
 export interface ProfileConfig {
@@ -64,13 +66,19 @@ export function createConfigStore(configDir?: string): ConfigStore {
 	}
 
 	async function save(config: ConfigFile): Promise<void> {
+		if (!isConfigFile(config)) throw invalidConfigError(filePath);
 		await mkdir(dir, { recursive: true });
 
 		// Atomic write: write to temp then rename
-		const tmpPath = `${filePath}.tmp`;
+		const tmpPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
 		const content = JSON.stringify(config, null, "\t");
-		await writeFile(tmpPath, `${content}\n`, { mode: 0o600 });
-		await rename(tmpPath, filePath);
+		try {
+			await writeFile(tmpPath, `${content}\n`, { mode: 0o600 });
+			await rename(tmpPath, filePath);
+		} catch (error) {
+			await rm(tmpPath, { force: true }).catch(() => undefined);
+			throw error;
+		}
 	}
 
 	return {
@@ -79,7 +87,7 @@ export function createConfigStore(configDir?: string): ConfigStore {
 
 		async getProfile(profile: string): Promise<ProfileConfig | null> {
 			const config = await load();
-			return config.profiles[profile] ?? null;
+			return Object.hasOwn(config.profiles, profile) ? (config.profiles[profile] ?? null) : null;
 		},
 
 		async setProfile(profile: string, data: ProfileConfig): Promise<void> {
@@ -92,7 +100,7 @@ export function createConfigStore(configDir?: string): ConfigStore {
 
 		async deleteProfile(profile: string): Promise<boolean> {
 			const config = await load();
-			if (!(profile in config.profiles)) return false;
+			if (!Object.hasOwn(config.profiles, profile)) return false;
 
 			const { [profile]: _, ...rest } = config.profiles;
 			await save({ ...config, profiles: rest });
@@ -110,7 +118,60 @@ function invalidConfigError(filePath: string): ValidationError {
 
 function isConfigFile(value: unknown): value is ConfigFile {
 	if (!isRecord(value)) return false;
-	return isRecord(value.profiles);
+	if (!isRecord(value.profiles)) return false;
+	return Object.entries(value.profiles).every(
+		([profile, data]) => isProfileName(profile) && isProfileConfig(data),
+	);
+}
+
+export function isProfileConfig(value: unknown): value is ProfileConfig {
+	if (!isRecord(value)) return false;
+	return (
+		isNullableUserId(value.userId) &&
+		isNullableString(value.username, true) &&
+		isNullableString(value.displayName, true) &&
+		isValidTimestamp(value.bootstrappedAt) &&
+		isValidTimestamp(value.lastValidatedAt)
+	);
+}
+
+function isNullableUserId(value: unknown): boolean {
+	if (value === null) return true;
+	if (typeof value !== "string") return false;
+	try {
+		entityId<"User">(value);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function isProfileName(value: string): boolean {
+	return (
+		value.trim() === value &&
+		value.length > 0 &&
+		![...value].some((character) => {
+			const codePoint = character.codePointAt(0) ?? 0;
+			return codePoint <= 31 || codePoint === 127;
+		})
+	);
+}
+
+function isNullableString(value: unknown, allowEmpty: boolean): boolean {
+	return (
+		value === null ||
+		(typeof value === "string" && (allowEmpty || value.length > 0) && value.trim() === value)
+	);
+}
+
+function isValidTimestamp(value: unknown): boolean {
+	if (typeof value !== "string") return false;
+	try {
+		timestamp(value);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

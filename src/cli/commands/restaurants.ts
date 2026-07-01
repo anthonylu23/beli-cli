@@ -60,6 +60,12 @@ async function executeSearch(
 	const pagination = extractPagination(cmdOpts);
 	const latitude = parseOptionalFiniteNumber(cmdOpts.lat, "lat", "--lat");
 	const longitude = parseOptionalFiniteNumber(cmdOpts.lng, "lng", "--lng");
+	if (latitude !== undefined && (latitude < -90 || latitude > 90)) {
+		throw new ValidationError("--lat must be between -90 and 90", "lat");
+	}
+	if (longitude !== undefined && (longitude < -180 || longitude > 180)) {
+		throw new ValidationError("--lng must be between -180 and 180", "lng");
+	}
 	const session = await requireSession(store, ctx.profile);
 	const adapter = createAdapter(session);
 	await validateSession(() => adapter.validateSession());

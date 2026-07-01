@@ -21,5 +21,9 @@ function parseLimit(value: string): number {
 	if (!/^[1-9]\d*$/.test(value)) {
 		throw new ValidationError("--limit must be a positive integer", "limit");
 	}
-	return Number(value);
+	const limit = Number(value);
+	if (!Number.isSafeInteger(limit)) {
+		throw new ValidationError("--limit must be a positive safe integer", "limit");
+	}
+	return limit;
 }

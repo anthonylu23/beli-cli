@@ -7,7 +7,7 @@ import { ValidationError } from "@core/errors.ts";
 export async function readStdinJson<T>(): Promise<T> {
 	if (process.stdin.isTTY) {
 		throw new ValidationError(
-			"No input on stdin. Pipe JSON or use --input with a file path.",
+			'No input on stdin. Pipe JSON and use "--input -"; file paths are not supported.',
 			"input",
 		);
 	}

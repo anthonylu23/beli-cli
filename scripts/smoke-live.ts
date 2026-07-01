@@ -7,7 +7,7 @@ import { createConfigStore } from "@infra/config.ts";
 import { createKeychainStore } from "@infra/keychain.ts";
 import { createSessionStore } from "@infra/session-store.ts";
 
-async function main(): Promise<void> {
+function readSmokeOptions(): { query: string; profile: string } {
 	if (Bun.env.BELI_LIVE_SMOKE !== "1") {
 		throw new ValidationError("Set BELI_LIVE_SMOKE=1 to run the live smoke flow.");
 	}
@@ -19,8 +19,11 @@ async function main(): Promise<void> {
 	if (!query) {
 		throw new ValidationError("Set BELI_SMOKE_RESTAURANT_QUERY to a known safe query.");
 	}
+	return { query, profile: Bun.env.BELI_PROFILE?.trim() || "default" };
+}
 
-	const profile = Bun.env.BELI_PROFILE?.trim() || "default";
+async function main(): Promise<void> {
+	const { query, profile } = readSmokeOptions();
 	const store = createSessionStore(createKeychainStore(), createConfigStore());
 	const session = await store.load(profile);
 	if (!session) {
@@ -42,6 +45,7 @@ async function main(): Promise<void> {
 
 	let createdListId: string | null = null;
 	let removedEntry = false;
+	let primaryError: unknown;
 
 	try {
 		const list = await adapter.createList({
@@ -77,11 +81,21 @@ async function main(): Promise<void> {
 				2,
 			)}\n`,
 		);
-	} finally {
-		if (createdListId) {
+	} catch (error) {
+		primaryError = error;
+	}
+
+	if (createdListId) {
+		try {
 			await adapter.deleteList(entityId<"List">(createdListId));
+		} catch (cleanupError) {
+			if (primaryError === undefined) throw cleanupError;
+			const message =
+				cleanupError instanceof Error ? cleanupError.message : "unknown cleanup error";
+			process.stderr.write(`warning: smoke cleanup also failed: ${message}\n`);
 		}
 	}
+	if (primaryError !== undefined) throw primaryError;
 }
 
 try {
