@@ -214,6 +214,7 @@ describe("createLiveAdapter", () => {
 		expect(() =>
 			createLiveAdapter(TEST_SESSION, { baseUrl: "http://localhost:3000" }),
 		).not.toThrow();
+		expect(() => createLiveAdapter(TEST_SESSION, { baseUrl: "http://[::1]:3000" })).not.toThrow();
 	});
 });
 

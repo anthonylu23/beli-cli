@@ -241,7 +241,7 @@ describe("beli auth", () => {
 		expect((await existing.load("default"))?.credentials.authToken).toBe("old-token");
 	});
 
-	for (const input of [null, [], 42, { authToken: " " }] as unknown[]) {
+	for (const input of [null, [], 42, { authToken: " " }, { authToken: "Bearer " }] as unknown[]) {
 		test(`auth bootstrap rejects invalid input ${JSON.stringify(input)}`, async () => {
 			const result = await runProgram(["auth", "bootstrap"], {
 				bootstrapInput: input as BootstrapInput,

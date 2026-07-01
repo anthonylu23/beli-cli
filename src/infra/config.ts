@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ValidationError } from "@core/errors.ts";
-import { timestamp } from "@core/types.ts";
+import { entityId, timestamp } from "@core/types.ts";
 
 /** Per-profile config stored on disk (no secrets). */
 export interface ProfileConfig {
@@ -87,7 +87,7 @@ export function createConfigStore(configDir?: string): ConfigStore {
 
 		async getProfile(profile: string): Promise<ProfileConfig | null> {
 			const config = await load();
-			return config.profiles[profile] ?? null;
+			return Object.hasOwn(config.profiles, profile) ? (config.profiles[profile] ?? null) : null;
 		},
 
 		async setProfile(profile: string, data: ProfileConfig): Promise<void> {
@@ -127,12 +127,23 @@ function isConfigFile(value: unknown): value is ConfigFile {
 export function isProfileConfig(value: unknown): value is ProfileConfig {
 	if (!isRecord(value)) return false;
 	return (
-		isNullableString(value.userId, false) &&
+		isNullableUserId(value.userId) &&
 		isNullableString(value.username, true) &&
 		isNullableString(value.displayName, true) &&
 		isValidTimestamp(value.bootstrappedAt) &&
 		isValidTimestamp(value.lastValidatedAt)
 	);
+}
+
+function isNullableUserId(value: unknown): boolean {
+	if (value === null) return true;
+	if (typeof value !== "string") return false;
+	try {
+		entityId<"User">(value);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function isProfileName(value: string): boolean {

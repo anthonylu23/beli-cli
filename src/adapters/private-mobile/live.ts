@@ -264,7 +264,7 @@ function normalizeBaseUrl(baseUrl: string): string {
 			);
 		}
 		const isLocalhost =
-			url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
+			url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
 		if (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhost)) {
 			throw new ValidationError(
 				"BELI_API_BASE_URL must use HTTPS (HTTP is allowed only for localhost)",

@@ -87,6 +87,7 @@ describe("ConfigStore", () => {
 		["wrong field types", { ...testProfile, username: 42 }],
 		["invalid timestamps", { ...testProfile, bootstrappedAt: "yesterday" }],
 		["empty user id", { ...testProfile, userId: "" }],
+		["invalid user id", { ...testProfile, userId: "user 123" }],
 	] as const) {
 		it(`throws for well-formed config JSON with ${label}`, async () => {
 			await Bun.write(join(dir, "config.json"), JSON.stringify({ profiles: { default: profile } }));
@@ -95,6 +96,7 @@ describe("ConfigStore", () => {
 	}
 
 	it("does not treat inherited profile names as stored profiles", async () => {
+		expect(await store.getProfile("toString")).toBeNull();
 		expect(await store.deleteProfile("toString")).toBeFalse();
 	});
 

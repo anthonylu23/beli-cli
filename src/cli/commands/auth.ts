@@ -100,10 +100,18 @@ async function executeBootstrap(
 	}
 
 	// Normalize token: strip "Bearer " prefix if present
-	const authToken = input.authToken.replace(/^Bearer\s+/i, "");
+	const authToken = input.authToken
+		.trim()
+		.replace(/^Bearer(?:\s+|$)/i, "")
+		.trim();
+	if (!authToken) {
+		throw new ValidationError("Bootstrap input requires a non-empty authToken.", "authToken");
+	}
+	const refreshToken = input.refreshToken?.trim() ?? null;
+	const suppliedUserId = input.userId?.trim();
 
 	// Validate (stubbed for now)
-	const result = await deps.validateToken(authToken, input.userId);
+	const result = await deps.validateToken(authToken, suppliedUserId);
 	if (!result.valid) {
 		throw new AuthRequiredError("The supplied Beli token could not be validated.");
 	}
@@ -115,7 +123,7 @@ async function executeBootstrap(
 	await store.save(ctx.profile, {
 		credentials: {
 			authToken,
-			refreshToken: input.refreshToken ?? null,
+			refreshToken,
 			userId,
 		},
 		metadata: {
